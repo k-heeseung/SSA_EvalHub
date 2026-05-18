@@ -5,30 +5,26 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "programs")
+@Table(name = "teams")
 @Getter
 @NoArgsConstructor
-public class Program {
+public class Team {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "manager_id")
-    private User manager;
+    @JoinColumn(name = "program_id", nullable = false)
+    private Program program;
 
     @Column(nullable = false)
-    private String title;
+    private String name;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ParticipantType participantType = ParticipantType.TEAM;
 
     @Column(columnDefinition = "text")
     private String description;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private ProgramType type;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Status status = Status.ACTIVE;
 }

@@ -22,9 +22,9 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role; // Enum: SUPER_ADMIN, MANAGER, EVALUATOR 등
+    private Role role;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Status status = Status.ACTIVE; // Enum: ACTIVE, INACTIVE
+    private Status status = Status.ACTIVE;
 }
