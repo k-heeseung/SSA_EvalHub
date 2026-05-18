@@ -24,3 +24,12 @@ spring:
 evalhub:
   storage:
     attachments-path: uploads/attachments
+
+springdoc:
+  packages-to-scan: com.example.evalhub.controller
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
