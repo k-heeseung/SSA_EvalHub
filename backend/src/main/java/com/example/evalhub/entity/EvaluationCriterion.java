@@ -38,4 +38,18 @@ public class EvaluationCriterion {
 
     @Column(nullable = false)
     private Integer displayOrder;
+
+    public EvaluationCriterion(
+            Program program,
+            String name,
+            String description,
+            BigDecimal weight,
+            Integer displayOrder
+    ) {
+        this.program = program;
+        this.name = name;
+        this.description = description;
+        this.weight = weight;
+        this.displayOrder = displayOrder;
+    }
 }

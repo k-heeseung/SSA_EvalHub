@@ -31,4 +31,11 @@ public class Program {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.ACTIVE;
+
+    public Program(User manager, String title, String description, ProgramType type) {
+        this.manager = manager;
+        this.title = title;
+        this.description = description;
+        this.type = type;
+    }
 }

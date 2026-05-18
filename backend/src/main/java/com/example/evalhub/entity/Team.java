@@ -27,4 +27,11 @@ public class Team {
 
     @Column(columnDefinition = "text")
     private String description;
+
+    public Team(Program program, String name, ParticipantType participantType, String description) {
+        this.program = program;
+        this.name = name;
+        this.participantType = participantType;
+        this.description = description;
+    }
 }

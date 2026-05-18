@@ -29,4 +29,20 @@ public class EvaluationAssignment {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AssignmentStatus status = AssignmentStatus.ASSIGNED;
+
+    public EvaluationAssignment(Program program, ProgramParticipant participant, User evaluator) {
+        this.program = program;
+        this.participant = participant;
+        this.evaluator = evaluator;
+    }
+
+    public void markInProgress() {
+        if (this.status == AssignmentStatus.ASSIGNED) {
+            this.status = AssignmentStatus.IN_PROGRESS;
+        }
+    }
+
+    public void markSubmitted() {
+        this.status = AssignmentStatus.SUBMITTED;
+    }
 }

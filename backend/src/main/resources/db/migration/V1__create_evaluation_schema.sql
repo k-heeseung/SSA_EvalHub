@@ -46,6 +46,18 @@ create table if not exists program_participants (
     unique (program_id, team_id)
 );
 
+create table if not exists participant_attachments (
+    id bigserial primary key,
+    participant_id bigint not null references program_participants(id) on delete cascade,
+    original_filename varchar(255) not null,
+    stored_filename varchar(255) not null,
+    content_type varchar(100) not null,
+    file_size bigint not null,
+    storage_path varchar(1000) not null,
+    uploaded_at timestamp not null,
+    constraint chk_participant_attachments_pdf check (content_type = 'application/pdf')
+);
+
 create table if not exists evaluation_criteria (
     id bigserial primary key,
     program_id bigint not null references programs(id) on delete cascade,
@@ -98,6 +110,7 @@ create table if not exists evaluation_scores (
 create index if not exists idx_programs_manager_id on programs(manager_id);
 create index if not exists idx_teams_program_id on teams(program_id);
 create index if not exists idx_program_participants_program_id on program_participants(program_id);
+create index if not exists idx_participant_attachments_participant_id on participant_attachments(participant_id);
 create index if not exists idx_evaluation_criteria_program_id on evaluation_criteria(program_id);
 create index if not exists idx_evaluation_assignments_program_id on evaluation_assignments(program_id);
 create index if not exists idx_evaluation_assignments_evaluator_id on evaluation_assignments(evaluator_id);

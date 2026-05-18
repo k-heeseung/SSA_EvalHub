@@ -32,4 +32,22 @@ public class EvaluationSubmission {
     private String oneLineComment;
 
     private LocalDateTime submittedAt;
+
+    public EvaluationSubmission(EvaluationAssignment assignment) {
+        this.assignment = assignment;
+    }
+
+    public void saveDraft(BigDecimal totalScore, String oneLineComment) {
+        this.status = SubmissionStatus.DRAFT;
+        this.totalScore = totalScore;
+        this.oneLineComment = oneLineComment;
+        this.submittedAt = null;
+    }
+
+    public void submit(BigDecimal totalScore, String oneLineComment) {
+        this.status = SubmissionStatus.SUBMITTED;
+        this.totalScore = totalScore;
+        this.oneLineComment = oneLineComment;
+        this.submittedAt = LocalDateTime.now();
+    }
 }

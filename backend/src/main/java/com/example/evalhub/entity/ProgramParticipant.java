@@ -30,4 +30,12 @@ public class ProgramParticipant {
 
     @Column(columnDefinition = "text")
     private String notes;
+
+    public ProgramParticipant(Program program, Team team, String displayName, String submissionUrl, String notes) {
+        this.program = program;
+        this.team = team;
+        this.displayName = displayName;
+        this.submissionUrl = submissionUrl;
+        this.notes = notes;
+    }
 }
