@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,7 +24,10 @@ public class EvaluationService {
     private final EvaluationSubmissionRepository submissionRepository;
     private final EvaluationScoreRepository scoreRepository;
     private final ParticipantAttachmentRepository attachmentRepository;
-    private final ProgramParticipantRepository participantRepository;
+    private final TeamRepository teamRepository;
+    private final TeamMemberRepository teamMemberRepository;
+    private final ApplicationRepository applicationRepository;
+    private final ApplicationService applicationService;
 
     public EvaluationService(
             EvaluationAssignmentRepository assignmentRepository,
@@ -32,21 +35,29 @@ public class EvaluationService {
             EvaluationSubmissionRepository submissionRepository,
             EvaluationScoreRepository scoreRepository,
             ParticipantAttachmentRepository attachmentRepository,
-            ProgramParticipantRepository participantRepository
+            TeamRepository teamRepository,
+            TeamMemberRepository teamMemberRepository,
+            ApplicationRepository applicationRepository,
+            ApplicationService applicationService
     ) {
         this.assignmentRepository = assignmentRepository;
         this.criterionRepository = criterionRepository;
         this.submissionRepository = submissionRepository;
         this.scoreRepository = scoreRepository;
         this.attachmentRepository = attachmentRepository;
-        this.participantRepository = participantRepository;
+        this.teamRepository = teamRepository;
+        this.teamMemberRepository = teamMemberRepository;
+        this.applicationRepository = applicationRepository;
+        this.applicationService = applicationService;
     }
 
-    // 평가 화면 초기 데이터: 배정, 프로그램, 평가 대상, 질문, PDF, 기존 제출 내용을 조립한다.
+    // 평가 화면 초기 데이터: 프로그램, 평가 대상, 질문, PDF, 기존 제출 내용을 조립한다.
     @Transactional(readOnly = true)
-    public EvaluationViewResponse getEvaluationView(Long assignmentId) {
-        EvaluationAssignment assignment = findAssignment(assignmentId);
-        ProgramParticipant participant = assignment.getParticipant();
+    public EvaluationViewResponse getEvaluationView(Long assignmentId, Long teamId, Long evaluatorId) {
+        EvaluationAssignment assignment = findOwnedAssignment(assignmentId, evaluatorId);
+        Team team = findTeam(teamId);
+        validateTeamBelongsToProgram(team, assignment.getProgram().getId());
+        validateTeamIsEvaluable(team);
 
         List<CriterionResponse> criteria = criterionRepository
                 .findByProgramIdOrderByDisplayOrderAsc(assignment.getProgram().getId())
@@ -55,40 +66,146 @@ public class EvaluationService {
                 .toList();
 
         List<ParticipantAttachmentResponse> attachments = attachmentRepository
-                .findByParticipantIdOrderByUploadedAtDesc(participant.getId())
+                .findByTeamIdOrderByUploadedAtDesc(team.getId())
                 .stream()
                 .map(ParticipantAttachmentResponse::from)
                 .toList();
 
-        EvaluationSubmissionResponse submission = submissionRepository.findByAssignmentId(assignmentId)
+        EvaluationSubmissionResponse submission = submissionRepository.findByAssignmentIdAndTeamId(assignmentId, teamId)
                 .map(this::toSubmissionResponse)
                 .orElse(null);
 
+        List<TeamMemberResponse> members = teamMemberRepository.findByTeamIdOrderByIdAsc(team.getId()).stream()
+                .map(TeamMemberResponse::from)
+                .toList();
+
         return new EvaluationViewResponse(
-                AssignmentResponse.from(assignment),
                 ProgramResponse.from(assignment.getProgram()),
-                TeamResponse.from(participant.getTeam(), participant),
+                TeamResponse.from(team, members),
+                applicationService.findApplicationByTeam(team.getId()),
                 criteria,
                 attachments,
                 submission
         );
     }
 
+    // 평가자 팀 목록: 배정된 프로그램의 모든 팀과, 각 팀에 대한 본인 채점 상태를 함께 조회한다.
+    @Transactional(readOnly = true)
+    public List<EvaluationTeamStatusResponse> getAssignmentTeams(Long assignmentId, Long evaluatorId) {
+        EvaluationAssignment assignment = findOwnedAssignment(assignmentId, evaluatorId);
+        List<Team> teams = findEvaluableTeams(assignment.getProgram().getId());
+        BigDecimal maxTotalScore = criterionRepository
+                .findByProgramIdOrderByDisplayOrderAsc(assignment.getProgram().getId()).stream()
+                .map(EvaluationCriterion::getMaxScore)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Map<Long, EvaluationSubmission> submissionByTeam = submissionRepository.findByAssignmentId(assignmentId).stream()
+                .collect(Collectors.toMap(s -> s.getTeam().getId(), Function.identity()));
+
+        return teams.stream()
+                .map(team -> {
+                    EvaluationSubmission submission = submissionByTeam.get(team.getId());
+                    EvaluationSubmissionResponse submissionResponse = submission == null
+                            ? null
+                            : toSubmissionResponse(submission);
+                    return new EvaluationTeamStatusResponse(
+                            team.getId(),
+                            team.getName(),
+                            team.getDescription(),
+                            totalMemberCount(team),
+                            submissionResponse == null ? null : submissionResponse.status(),
+                            submissionResponse == null ? null : submissionResponse.totalScore(),
+                            maxTotalScore,
+                            submissionResponse == null ? null : submissionResponse.oneLineComment()
+                    );
+                })
+                .toList();
+    }
+
+    // 계정 연결 여부와 관계없이 지원서에 입력된 팀장 1명과 추가 팀원 전원을 센다.
+    private int totalMemberCount(Team team) {
+        return ApplicantInfo.parse(team.getApplicantInfo()).totalMemberCount();
+    }
+
+    // 평가자 대시보드: 배정(프로그램)별로 팀 수와 제출/임시저장 수를 집계해 진행 현황을 조회한다.
+    @Transactional(readOnly = true)
+    public List<EvaluatorAssignmentResponse> getEvaluatorAssignments(Long evaluatorId) {
+        List<EvaluationAssignment> assignments = assignmentRepository.findByEvaluatorIdOrderByIdDesc(evaluatorId);
+        if (assignments.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> assignmentIds = assignments.stream().map(EvaluationAssignment::getId).toList();
+        Map<Long, List<EvaluationSubmission>> submissionsByAssignment = submissionRepository
+                .findByAssignmentIdIn(assignmentIds).stream()
+                .collect(Collectors.groupingBy(s -> s.getAssignment().getId()));
+
+        return assignments.stream()
+                .map(assignment -> {
+                    Set<Long> evaluableTeamIds = findEvaluableTeams(assignment.getProgram().getId()).stream()
+                            .map(Team::getId)
+                            .collect(Collectors.toSet());
+                    int teamCount = evaluableTeamIds.size();
+                    List<EvaluationSubmission> submissions = submissionsByAssignment
+                            .getOrDefault(assignment.getId(), List.of()).stream()
+                            .filter(submission -> evaluableTeamIds.contains(submission.getTeam().getId()))
+                            .toList();
+                    int submittedCount = (int) submissions.stream()
+                            .filter(s -> s.getStatus() == SubmissionStatus.SUBMITTED).count();
+                    int draftCount = (int) submissions.stream()
+                            .filter(s -> s.getStatus() == SubmissionStatus.DRAFT).count();
+                    AssignmentStatus status = teamCount > 0 && submittedCount == teamCount
+                            ? AssignmentStatus.SUBMITTED
+                            : (submittedCount + draftCount > 0 ? AssignmentStatus.IN_PROGRESS : AssignmentStatus.ASSIGNED);
+                    return new EvaluatorAssignmentResponse(
+                            assignment.getId(),
+                            assignment.getProgram().getId(),
+                            assignment.getProgram().getTitle(),
+                            assignment.getProgram().getEvaluationStart(),
+                            assignment.getProgram().getEvaluationDeadline(),
+                            status,
+                            teamCount,
+                            submittedCount,
+                            draftCount
+                    );
+                })
+                .toList();
+    }
+
     // 작성 중인 평가는 일부 질문만 점수가 있어도 저장할 수 있다.
     @Transactional
-    public EvaluationSubmissionResponse saveDraft(Long assignmentId, SaveEvaluationRequest request) {
-        return save(assignmentId, request, false);
+    public EvaluationSubmissionResponse saveDraft(
+            Long assignmentId,
+            Long teamId,
+            Long evaluatorId,
+            SaveEvaluationRequest request
+    ) {
+        return save(assignmentId, teamId, evaluatorId, request, false);
     }
 
     // 최종 제출은 모든 질문에 0~10점 점수가 있어야 가능하다.
     @Transactional
-    public EvaluationSubmissionResponse submit(Long assignmentId, SaveEvaluationRequest request) {
-        return save(assignmentId, request, true);
+    public EvaluationSubmissionResponse submit(
+            Long assignmentId,
+            Long teamId,
+            Long evaluatorId,
+            SaveEvaluationRequest request
+    ) {
+        return save(assignmentId, teamId, evaluatorId, request, true);
     }
 
     // 임시저장과 제출이 공유하는 저장 로직이다.
-    private EvaluationSubmissionResponse save(Long assignmentId, SaveEvaluationRequest request, boolean submit) {
-        EvaluationAssignment assignment = findAssignment(assignmentId);
+    private EvaluationSubmissionResponse save(
+            Long assignmentId,
+            Long teamId,
+            Long evaluatorId,
+            SaveEvaluationRequest request,
+            boolean submit
+    ) {
+        EvaluationAssignment assignment = findOwnedAssignment(assignmentId, evaluatorId);
+        Team team = findTeam(teamId);
+        validateTeamBelongsToProgram(team, assignment.getProgram().getId());
+        validateTeamIsEvaluable(team);
+        validateEvaluationStarted(assignment);
         validateOneLineComment(request.oneLineComment());
 
         List<EvaluationCriterion> criteria = criterionRepository
@@ -99,8 +216,8 @@ public class EvaluationService {
         List<EvaluationScoreRequest> requestedScores = request.scores() == null ? List.of() : request.scores();
         validateScores(requestedScores, criteriaById.keySet(), submit);
 
-        EvaluationSubmission submission = submissionRepository.findByAssignmentId(assignmentId)
-                .orElseGet(() -> submissionRepository.save(new EvaluationSubmission(assignment)));
+        EvaluationSubmission submission = submissionRepository.findByAssignmentIdAndTeamId(assignmentId, teamId)
+                .orElseGet(() -> submissionRepository.save(new EvaluationSubmission(assignment, team)));
 
         for (EvaluationScoreRequest requestedScore : requestedScores) {
             EvaluationCriterion criterion = criteriaById.get(requestedScore.criterionId());
@@ -114,20 +231,37 @@ public class EvaluationService {
         }
 
         List<EvaluationScore> savedScores = scoreRepository.findBySubmissionId(submission.getId());
-        BigDecimal totalScore = calculateAverageScore(savedScores);
+        BigDecimal totalScore = calculateTotalScore(savedScores);
 
         if (submit) {
+            validateEvaluationNotClosed(assignment);
             if (savedScores.size() != criteria.size()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All criteria must be scored before submission.");
             }
             submission.submit(totalScore, request.oneLineComment());
-            assignment.markSubmitted();
         } else {
             submission.saveDraft(totalScore, request.oneLineComment());
-            assignment.markInProgress();
         }
 
+        recomputeAssignmentStatus(assignment);
+
         return toSubmissionResponse(submission);
+    }
+
+    // 배정에 속한 모든 팀의 제출 현황을 보고 배정 상태를 다시 계산한다.
+    private void recomputeAssignmentStatus(EvaluationAssignment assignment) {
+        Set<Long> evaluableTeamIds = findEvaluableTeams(assignment.getProgram().getId()).stream()
+                .map(Team::getId)
+                .collect(Collectors.toSet());
+        int teamCount = evaluableTeamIds.size();
+        List<EvaluationSubmission> submissions = submissionRepository.findByAssignmentId(assignment.getId()).stream()
+                .filter(submission -> evaluableTeamIds.contains(submission.getTeam().getId()))
+                .toList();
+        long submittedCount = submissions.stream()
+                .filter(s -> s.getStatus() == SubmissionStatus.SUBMITTED)
+                .count();
+        boolean allSubmitted = teamCount > 0 && submittedCount == teamCount;
+        assignment.updateProgress(allSubmitted, !submissions.isEmpty());
     }
 
     // 제출 엔티티와 기준별 점수 목록을 프론트 응답 형태로 변환한다.
@@ -138,10 +272,98 @@ public class EvaluationService {
         return EvaluationSubmissionResponse.from(submission, scores);
     }
 
+    // 프로그램에 속한 모든 팀의 평가 결과를 배정된 심사위원별로 조회한다.
+    @Transactional(readOnly = true)
+    public List<TeamEvaluationResult> getEvaluationResults(Long programId) {
+        List<Team> teams = findEvaluableTeams(programId);
+        List<EvaluationAssignment> assignments = assignmentRepository.findByProgramIdOrderByIdAsc(programId);
+
+        return teams.stream()
+                .map(team -> {
+                    List<EvaluatorSubmissionSummary> evaluations = assignments.stream()
+                            .map(assignment -> {
+                                EvaluationSubmissionResponse submission = submissionRepository
+                                        .findByAssignmentIdAndTeamId(assignment.getId(), team.getId())
+                                        .map(this::toSubmissionResponse)
+                                        .orElse(null);
+                                return new EvaluatorSubmissionSummary(
+                                        assignment.getEvaluator().getId(),
+                                        assignment.getEvaluator().getEmail(),
+                                        assignment.getEvaluator().getName(),
+                                        submission
+                                );
+                            })
+                            .toList();
+                    return new TeamEvaluationResult(team.getId(), team.getDisplayName(), team.getStatus(), team.getBonusScore(), evaluations);
+                })
+                .toList();
+    }
+
     // 배정이 없으면 평가 화면과 저장 API 모두 사용할 수 없다.
-    private EvaluationAssignment findAssignment(Long assignmentId) {
-        return assignmentRepository.findById(assignmentId)
+    private EvaluationAssignment findOwnedAssignment(Long assignmentId, Long evaluatorId) {
+        EvaluationAssignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Assignment not found."));
+        if (!assignment.getEvaluator().getId().equals(evaluatorId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Assignment does not belong to this evaluator.");
+        }
+        return assignment;
+    }
+
+    private Team findTeam(Long teamId) {
+        return teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found."));
+    }
+
+    private void validateTeamBelongsToProgram(Team team, Long programId) {
+        if (!team.getProgram().getId().equals(programId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Team does not belong to this assignment.");
+        }
+    }
+
+    // 지원서로 생성된 팀은 최종 제출된 경우에만 평가 대상이다.
+    // 매니저가 직접 생성한 팀은 연결된 지원서가 없으므로 기존처럼 평가할 수 있다.
+    private List<Team> findEvaluableTeams(Long programId) {
+        List<Team> teams = teamRepository.findByProgramIdOrderByIdAsc(programId);
+        if (teams.isEmpty()) {
+            return teams;
+        }
+
+        Map<Long, Boolean> submittedByTeamId = applicationRepository
+                .findByTeamIdIn(teams.stream().map(Team::getId).toList()).stream()
+                .collect(Collectors.toMap(
+                        application -> application.getTeam().getId(),
+                        Application::isSubmitted,
+                        Boolean::logicalOr
+                ));
+
+        return teams.stream()
+                .filter(team -> submittedByTeamId.getOrDefault(team.getId(), true))
+                .toList();
+    }
+
+    private void validateTeamIsEvaluable(Team team) {
+        boolean evaluable = applicationRepository.findByTeamId(team.getId())
+                .map(Application::isSubmitted)
+                .orElse(true);
+        if (!evaluable) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Team is not available for evaluation.");
+        }
+    }
+
+    // 평가 시작일 이전에는 임시저장·제출 모두 막는다. (자료 열람은 계속 허용)
+    private void validateEvaluationStarted(EvaluationAssignment assignment) {
+        LocalDate start = assignment.getProgram().getEvaluationStart();
+        if (start != null && LocalDate.now().isBefore(start)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "평가 시작일 이전에는 평가할 수 없습니다.");
+        }
+    }
+
+    // 평가 마감일이 지난 프로그램은 최종 제출을 막는다. (임시저장은 계속 허용)
+    private void validateEvaluationNotClosed(EvaluationAssignment assignment) {
+        LocalDate deadline = assignment.getProgram().getEvaluationDeadline();
+        if (deadline != null && LocalDate.now().isAfter(deadline)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "평가 마감일이 지나 제출할 수 없습니다.");
+        }
     }
 
     // 점수는 해당 프로그램의 질문에 대해서만 허용하고, 값은 0~10 범위로 제한한다.
@@ -180,15 +402,10 @@ public class EvaluationService {
         }
     }
 
-    // 현재 총점은 입력된 질문 점수의 단순 평균이다. 가중치 계산이 필요하면 이 메서드만 바꾸면 된다.
-    private BigDecimal calculateAverageScore(List<EvaluationScore> scores) {
-        if (scores.isEmpty()) {
-            return BigDecimal.ZERO;
-        }
-
-        BigDecimal sum = scores.stream()
+    // 총점은 질문별 점수의 평균이 아니라 단순 합계다.
+    private BigDecimal calculateTotalScore(List<EvaluationScore> scores) {
+        return scores.stream()
                 .map(EvaluationScore::getScore)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return sum.divide(BigDecimal.valueOf(scores.size()), 2, RoundingMode.HALF_UP);
     }
 }

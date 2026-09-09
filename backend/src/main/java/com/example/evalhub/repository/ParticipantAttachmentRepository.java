@@ -7,5 +7,7 @@ import java.util.List;
 
 public interface ParticipantAttachmentRepository extends JpaRepository<ParticipantAttachment, Long> {
 
-    List<ParticipantAttachment> findByParticipantIdOrderByUploadedAtDesc(Long participantId);
+    List<ParticipantAttachment> findByTeamIdOrderByUploadedAtDesc(Long teamId);
+
+    long countByTeamId(Long teamId);
 }

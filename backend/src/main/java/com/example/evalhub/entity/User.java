@@ -28,9 +28,38 @@ public class User {
     @Column(nullable = false)
     private Status status = Status.ACTIVE;
 
+    @Column
+    private String name;
+
+    // 숫자만 남긴 정규화 형태로 저장한다. (PhoneNumbers.normalize)
+    @Column
+    private String phone;
+
+    @Column
+    private String department;
+
     public User(String email, String password, Role role) {
         this.email = email;
         this.password = password;
         this.role = role;
+    }
+
+    public User(String email, String password, Role role, String name, String department) {
+        this(email, password, role, name, null, department);
+    }
+
+    public User(String email, String password, Role role, String name, String phone, String department) {
+        this(email, password, role);
+        this.name = name;
+        this.phone = phone;
+        this.department = department;
+    }
+
+    public void changeStatus(Status status) {
+        this.status = status;
+    }
+
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
     }
 }

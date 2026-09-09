@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 public record ParticipantAttachmentResponse(
         Long id,
-        Long participantId,
+        Long teamId,
         String originalFilename,
         String contentType,
         Long fileSize,
@@ -17,7 +17,7 @@ public record ParticipantAttachmentResponse(
     public static ParticipantAttachmentResponse from(ParticipantAttachment attachment) {
         return new ParticipantAttachmentResponse(
                 attachment.getId(),
-                attachment.getParticipant().getId(),
+                attachment.getTeam().getId(),
                 attachment.getOriginalFilename(),
                 attachment.getContentType(),
                 attachment.getFileSize(),

@@ -52,4 +52,11 @@ public class EvaluationCriterion {
         this.weight = weight;
         this.displayOrder = displayOrder;
     }
+
+    public void update(String name, String description, BigDecimal weight, Integer displayOrder) {
+        this.name = name;
+        this.description = description;
+        this.weight = weight;
+        this.displayOrder = displayOrder;
+    }
 }

@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+
+
 @Entity
 @Table(name = "evaluation_submissions")
 @Getter
@@ -17,9 +19,13 @@ public class EvaluationSubmission {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignment_id", nullable = false)
     private EvaluationAssignment assignment;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id", nullable = false)
+    private Team team;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -33,8 +39,9 @@ public class EvaluationSubmission {
 
     private LocalDateTime submittedAt;
 
-    public EvaluationSubmission(EvaluationAssignment assignment) {
+    public EvaluationSubmission(EvaluationAssignment assignment, Team team) {
         this.assignment = assignment;
+        this.team = team;
     }
 
     public void saveDraft(BigDecimal totalScore, String oneLineComment) {

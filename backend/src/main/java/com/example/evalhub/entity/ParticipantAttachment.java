@@ -17,8 +17,8 @@ public class ParticipantAttachment {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "participant_id", nullable = false)
-    private ProgramParticipant participant;
+    @JoinColumn(name = "team_id", nullable = false)
+    private Team team;
 
     @Column(nullable = false)
     private String originalFilename;
@@ -39,14 +39,14 @@ public class ParticipantAttachment {
     private LocalDateTime uploadedAt;
 
     public ParticipantAttachment(
-            ProgramParticipant participant,
+            Team team,
             String originalFilename,
             String storedFilename,
             String contentType,
             Long fileSize,
             String storagePath
     ) {
-        this.participant = participant;
+        this.team = team;
         this.originalFilename = originalFilename;
         this.storedFilename = storedFilename;
         this.contentType = contentType;

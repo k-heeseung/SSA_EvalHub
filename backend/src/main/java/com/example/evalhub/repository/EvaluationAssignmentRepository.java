@@ -10,5 +10,13 @@ public interface EvaluationAssignmentRepository extends JpaRepository<Evaluation
 
     List<EvaluationAssignment> findByEvaluatorIdOrderByIdDesc(Long evaluatorId);
 
-    Optional<EvaluationAssignment> findByParticipantIdAndEvaluatorId(Long participantId, Long evaluatorId);
+    List<EvaluationAssignment> findByProgramIdOrderByIdAsc(Long programId);
+
+    Optional<EvaluationAssignment> findByProgramIdAndEvaluatorId(Long programId, Long evaluatorId);
+
+    long countByProgramId(Long programId);
+
+    long countByEvaluatorId(Long evaluatorId);
+
+    long countByProgramIdAndStatus(Long programId, com.example.evalhub.entity.AssignmentStatus status);
 }

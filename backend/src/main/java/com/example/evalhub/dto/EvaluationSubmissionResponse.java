@@ -20,10 +20,14 @@ public record EvaluationSubmissionResponse(
             EvaluationSubmission submission,
             List<EvaluationScoreResponse> scores
     ) {
+        // 과거에 평균으로 저장된 제출도 세부 점수가 남아 있으면 항상 합계로 응답한다.
+        BigDecimal totalScore = scores.stream()
+                .map(EvaluationScoreResponse::score)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         return new EvaluationSubmissionResponse(
                 submission.getId(),
                 submission.getStatus(),
-                submission.getTotalScore(),
+                totalScore,
                 submission.getOneLineComment(),
                 submission.getSubmittedAt(),
                 scores

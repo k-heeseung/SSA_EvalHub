@@ -6,8 +6,6 @@ import com.example.evalhub.entity.EvaluationAssignment;
 public record AssignmentResponse(
         Long id,
         Long programId,
-        Long participantId,
-        String participantName,
         Long evaluatorId,
         String evaluatorEmail,
         AssignmentStatus status
@@ -17,8 +15,6 @@ public record AssignmentResponse(
         return new AssignmentResponse(
                 assignment.getId(),
                 assignment.getProgram().getId(),
-                assignment.getParticipant().getId(),
-                assignment.getParticipant().getDisplayName(),
                 assignment.getEvaluator().getId(),
                 assignment.getEvaluator().getEmail(),
                 assignment.getStatus()
