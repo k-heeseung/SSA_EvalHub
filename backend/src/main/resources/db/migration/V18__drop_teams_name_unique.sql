@@ -1,0 +1,14 @@
+-- teams(program_id, name) 유니크 제약 제거.
+--
+-- 이 제약은 매니저만 팀을 만들던 V1 시절의 가정이었다. V11에서 지원자가 직접 지원서를
+-- 시작하게 되면서 성립하지 않는다.
+--   1) 지원 시작 시점에는 팀명을 받을 수 없다. 팀 행을 먼저 만들어야 PDF 첨부가 가능하고,
+--      팀명은 그 다음 작성 화면에서 입력한다. 그래서 name이 ''인 채로 INSERT되는데,
+--      프로그램당 ''는 하나만 존재할 수 있어 두 번째 지원자부터 지원이 막혔다.
+--   2) 팀명을 채운 뒤에도 문제가 남는다. 팀 지원은 서로 다른 팀이 같은 팀명을,
+--      개인 지원은 동명이인이 같은 이름을 쓸 수 있는데 둘 다 제약 위반이 된다.
+--
+-- 팀명·지원자명은 사용자 입력값이므로 중복이 정상이다. 실제로 필요한 유일성은
+-- applications의 uq_applications_program_applicant(program_id, applicant_id)가
+-- 이미 보장한다(한 프로그램당 한 지원자에 지원서 하나).
+alter table teams drop constraint if exists teams_program_id_name_key;
