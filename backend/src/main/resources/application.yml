@@ -16,12 +16,30 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
   servlet:
     multipart:
       max-file-size: 20MB
       max-request-size: 25MB
 
+server:
+  error:
+    include-message: always
+
 evalhub:
+  bootstrap:
+    admin-email: ${EVALHUB_BOOTSTRAP_ADMIN_EMAIL:}
+    admin-password: ${EVALHUB_BOOTSTRAP_ADMIN_PASSWORD:}
+  security:
+    secure-cookie: ${EVALHUB_SECURE_COOKIE:false}
+    # 운영 환경에서는 반드시 32바이트 이상의 임의 문자열로 교체한다.
+    jwt-secret: ${EVALHUB_JWT_SECRET:evalhub-local-development-secret-change-me}
+    access-token-minutes: ${EVALHUB_JWT_ACCESS_MINUTES:30}
+    remembered-token-days: ${EVALHUB_JWT_REMEMBERED_DAYS:30}
   storage:
     attachments-path: uploads/attachments
 
