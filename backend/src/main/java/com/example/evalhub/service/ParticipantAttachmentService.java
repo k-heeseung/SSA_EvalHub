@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -71,6 +72,7 @@ public class ParticipantAttachmentService {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found."));
         requireWriteAccess(team, user);
+        validateApplicationOpen(team, user);
         reopenApplicationForMemberEdit(team, user);
 
         String storedFilename = UUID.randomUUID() + ".pdf";
@@ -142,6 +144,7 @@ public class ParticipantAttachmentService {
         ParticipantAttachment attachment = attachmentRepository.findById(attachmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Attachment not found."));
         requireWriteAccess(attachment.getTeam(), user);
+        validateApplicationOpen(attachment.getTeam(), user);
         reopenApplicationForMemberEdit(attachment.getTeam(), user);
 
         Path filePath = storageRoot.resolve(attachment.getStoragePath()).normalize();
@@ -190,6 +193,18 @@ public class ParticipantAttachmentService {
         return applicationRepository.findByTeamId(team.getId())
                 .map(Application::isSubmitted)
                 .orElse(true);
+    }
+
+    // 마감일 당일까지 지원자의 첨부 변경을 허용한다. 관리자 수정은 계속 허용한다.
+    private void validateApplicationOpen(Team team, AuthenticatedUser user) {
+        if (user.role() != Role.MEMBER) {
+            return;
+        }
+        LocalDate deadline = team.getProgram().getApplicationDeadline();
+        if (deadline != null && LocalDate.now().isAfter(deadline)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "지원 마감일이 지나 첨부파일을 변경할 수 없습니다.");
+        }
     }
 
     private void reopenApplicationForMemberEdit(Team team, AuthenticatedUser user) {
