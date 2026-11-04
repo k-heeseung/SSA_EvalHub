@@ -10,7 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
+import java.time.Instant;
+import com.example.evalhub.util.ProgramTimes;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -100,14 +101,10 @@ public class ApplicationService {
             return toDetail(existing);
         }
 
-        // 신규 지원은 지원 접수 중(RECRUITING)이고 마감일이 지나지 않은 프로그램에만 허용한다.
-        if (program.getStatus() != Status.RECRUITING) {
+        // 스케줄러 실행 사이에도 실제 지원 시작·마감 시각으로 판정한다.
+        if (!ProgramScheduleResponse.from(program).canApply()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "현재 지원을 접수하지 않는 프로그램입니다.");
         }
-        if (program.getApplicationDeadline() != null && program.getApplicationDeadline().isBefore(LocalDate.now())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원 기간이 마감되었습니다.");
-        }
-
         return toDetail(createDraft(program, applicant, request.teamName()));
     }
 
@@ -346,16 +343,21 @@ public class ApplicationService {
 
     // 지원 마감일이 지난 프로그램은 임시저장·제출·팀 정보 수정 모두 막는다. (조회·취소는 계속 허용)
     private void validateApplicationOpen(Application application) {
-        LocalDate deadline = application.getProgram().getApplicationDeadline();
-        if (deadline != null && LocalDate.now().isAfter(deadline)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원 마감일이 지나 지원서를 수정할 수 없습니다.");
+        Instant deadline = ProgramTimes.applicationDeadline(application.getProgram());
+        Instant now = Instant.now();
+        Instant start = ProgramTimes.applicationStart(application.getProgram());
+        if (start != null && now.isBefore(start)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원 시작 시각 이전에는 지원서를 수정할 수 없습니다.");
+        }
+        if (deadline != null && !now.isBefore(deadline)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원 마감 시각이 지나 지원서를 수정할 수 없습니다.");
         }
     }
 
     // 평가 시작일 이후에는 지원 취소를 막는다. (이미 배정된 심사에 영향을 주므로 담당자 문의로 처리)
     private void validateCancellable(Application application) {
-        LocalDate evaluationStart = application.getProgram().getEvaluationStart();
-        if (evaluationStart != null && !LocalDate.now().isBefore(evaluationStart)) {
+        Instant evaluationStart = ProgramTimes.evaluationStart(application.getProgram());
+        if (evaluationStart != null && !Instant.now().isBefore(evaluationStart)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "평가 시작 이후에는 지원을 취소할 수 없습니다. 담당자에게 문의해주세요.");
         }
     }
@@ -479,7 +481,8 @@ public class ApplicationService {
                 program.getParticipantType(),
                 applicantInfo,
                 fields,
-                attachments
+                attachments,
+                ProgramScheduleResponse.from(program)
         );
     }
 

@@ -20,7 +20,8 @@ public record ApplicationSummaryResponse(
         LocalDate applicationDeadline,
         LocalDateTime submittedAt,
         LocalDateTime updatedAt,
-        ApplicantInfo applicantInfo
+        ApplicantInfo applicantInfo,
+        ProgramScheduleResponse schedule
 ) {
 
     public static ApplicationSummaryResponse from(Application application) {
@@ -35,7 +36,8 @@ public record ApplicationSummaryResponse(
                 application.getProgram().getApplicationDeadline(),
                 application.getSubmittedAt(),
                 application.getUpdatedAt(),
-                ApplicantInfo.of(application.getTeam())
+                ApplicantInfo.of(application.getTeam()),
+                ProgramScheduleResponse.from(application.getProgram())
         );
     }
 }

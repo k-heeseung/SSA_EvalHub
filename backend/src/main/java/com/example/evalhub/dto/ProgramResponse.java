@@ -27,7 +27,8 @@ public record ProgramResponse(
         BigDecimal maxBonus,
         long teamCount,
         long evaluatorCount,
-        long submittedCount
+        long submittedCount,
+        ProgramScheduleResponse schedule
 ) {
 
     public static ProgramResponse from(Program program) {
@@ -35,13 +36,14 @@ public record ProgramResponse(
     }
 
     public static ProgramResponse from(Program program, long teamCount, long evaluatorCount, long submittedCount) {
+        ProgramScheduleResponse schedule = ProgramScheduleResponse.from(program);
         return new ProgramResponse(
                 program.getId(),
                 program.getManager() == null ? null : program.getManager().getId(),
                 program.getTitle(),
                 program.getDescription(),
                 program.getType(),
-                program.getStatus(),
+                schedule.periodStatus(),
                 program.getApplicationStart(),
                 program.getApplicationDeadline(),
                 program.getEvaluationStart(),
@@ -54,7 +56,8 @@ public record ProgramResponse(
                 program.getMaxBonus(),
                 teamCount,
                 evaluatorCount,
-                submittedCount
+                submittedCount,
+                schedule
         );
     }
 }

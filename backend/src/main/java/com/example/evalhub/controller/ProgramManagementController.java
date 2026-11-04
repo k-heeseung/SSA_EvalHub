@@ -45,7 +45,7 @@ public class ProgramManagementController {
     }
 
     // 프로그램 매니저가 Module A/B 평가 프로그램을 생성한다.
-    @Operation(summary = "프로그램 등록", description = "Module A/B 평가 프로그램을 생성합니다.")
+    @Operation(summary = "프로그램 등록", description = "기간은 applicationStartAt/applicationDeadlineAt/evaluationStartAt/evaluationDeadlineAt에 시간대가 포함된 ISO-8601 시각으로 보냅니다. 기존 날짜 필드도 호환됩니다. 시각 필드가 우선하며 마감 시각부터 차단됩니다.")
     @PostMapping("/programs")
     public ProgramResponse createProgram(@RequestBody CreateProgramRequest request) {
         return programManagementService.createProgram(request);
@@ -59,7 +59,7 @@ public class ProgramManagementController {
     }
 
     // 지원자 홈에 노출할 지원 접수 중(RECRUITING) 프로그램 목록을 조회한다.
-    @Operation(summary = "지원 접수 중 프로그램 목록 조회", description = "상태가 RECRUITING인 프로그램만 반환합니다. 지원자 홈에서 사용하며, 마감일이 지난 프로그램은 프론트에서 '마감'으로 표시합니다.")
+    @Operation(summary = "지원 접수 중 프로그램 목록 조회", description = "접수 예정·접수 중 프로그램을 반환합니다. 마감 시각이 지난 프로그램은 제외하고, schedule에 정확한 기간 및 현재 작업 가능 여부를 제공합니다.")
     @GetMapping("/programs/open")
     @PreAuthorize("permitAll()")
     public List<ProgramResponse> findOpenPrograms() {
@@ -67,7 +67,7 @@ public class ProgramManagementController {
     }
 
     // 프로그램 기본 정보를 수정한다. null 필드는 변경하지 않는다.
-    @Operation(summary = "프로그램 수정", description = "보낸 필드만 수정합니다. null 필드는 기존 값을 유지합니다.")
+    @Operation(summary = "프로그램 수정", description = "보낸 필드만 수정합니다. null은 기존 값을 유지합니다. 기간의 *At 필드는 오프셋이 포함된 ISO-8601 시각입니다. 기존 날짜만 보내는 경우 변경되지 않은 날짜의 정확한 시각은 유지합니다.")
     @PatchMapping("/programs/{programId}")
     public ProgramResponse updateProgram(@PathVariable Long programId, @RequestBody UpdateProgramRequest request) {
         return programManagementService.updateProgram(programId, request);

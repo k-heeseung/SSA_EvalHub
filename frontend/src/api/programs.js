@@ -2,6 +2,8 @@ import api from './client';
 
 export const getPrograms = () => api.get('/programs');
 export const getOpenPrograms = () => api.get('/programs/open');
+// Program period requests accept *At offset datetimes; responses include schedule.
+// Existing date-only payloads remain supported during the frontend transition.
 export const createProgram = (data) => api.post('/programs', data);
 export const updateProgram = (programId, data) => api.patch(`/programs/${programId}`, data);
 export const changeStatus = (programId, data) => api.patch(`/programs/${programId}/status`, data);

@@ -6,6 +6,8 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Instant;
+import com.example.evalhub.util.ProgramTimes;
 
 @Entity
 @Table(name = "programs")
@@ -42,6 +44,27 @@ public class Program {
     private LocalDate evaluationStart;
 
     private LocalDate evaluationDeadline;
+
+    @Column(columnDefinition = "timestamp with time zone")
+    private Instant applicationStartAt;
+    @Column(columnDefinition = "timestamp with time zone")
+    private Instant applicationDeadlineAt;
+    @Column(columnDefinition = "timestamp with time zone")
+    private Instant evaluationStartAt;
+    @Column(columnDefinition = "timestamp with time zone")
+    private Instant evaluationDeadlineAt;
+
+    public void updateSchedule(Instant applicationStartAt, Instant applicationDeadlineAt,
+                               Instant evaluationStartAt, Instant evaluationDeadlineAt) {
+        this.applicationStartAt = applicationStartAt;
+        this.applicationDeadlineAt = applicationDeadlineAt;
+        this.evaluationStartAt = evaluationStartAt;
+        this.evaluationDeadlineAt = evaluationDeadlineAt;
+        this.applicationStart = ProgramTimes.startDate(applicationStartAt);
+        this.applicationDeadline = ProgramTimes.lastDate(applicationDeadlineAt);
+        this.evaluationStart = ProgramTimes.startDate(evaluationStartAt);
+        this.evaluationDeadline = ProgramTimes.lastDate(evaluationDeadlineAt);
+    }
 
     @Column(columnDefinition = "text")
     private String eligibilityCriteria;

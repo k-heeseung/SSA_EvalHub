@@ -9,7 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.Instant;
+import com.example.evalhub.util.ProgramTimes;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -165,7 +166,8 @@ public class EvaluationService {
                             status,
                             teamCount,
                             submittedCount,
-                            draftCount
+                            draftCount,
+                            ProgramScheduleResponse.from(assignment.getProgram())
                     );
                 })
                 .toList();
@@ -206,6 +208,7 @@ public class EvaluationService {
         validateTeamBelongsToProgram(team, assignment.getProgram().getId());
         validateTeamIsEvaluable(team);
         validateEvaluationStarted(assignment);
+        validateEvaluationNotClosed(assignment);
         validateOneLineComment(request.oneLineComment());
 
         List<EvaluationCriterion> criteria = criterionRepository
@@ -243,7 +246,6 @@ public class EvaluationService {
         BigDecimal totalScore = calculateTotalScore(savedScores);
 
         if (submit) {
-            validateEvaluationNotClosed(assignment);
             if (savedScores.size() != criteria.size()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All criteria must be scored before submission.");
             }
@@ -361,17 +363,17 @@ public class EvaluationService {
 
     // 평가 시작일 이전에는 임시저장·제출 모두 막는다. (자료 열람은 계속 허용)
     private void validateEvaluationStarted(EvaluationAssignment assignment) {
-        LocalDate start = assignment.getProgram().getEvaluationStart();
-        if (start != null && LocalDate.now().isBefore(start)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "평가 시작일 이전에는 평가할 수 없습니다.");
+        Instant start = ProgramTimes.evaluationStart(assignment.getProgram());
+        if (start != null && Instant.now().isBefore(start)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "평가 시작 시각 이전에는 평가할 수 없습니다.");
         }
     }
 
-    // 평가 마감일이 지난 프로그램은 최종 제출을 막는다. (임시저장은 계속 허용)
+    // 평가 마감일이 지나면 임시저장·제출 모두 막는다. (자료 열람은 계속 허용)
     private void validateEvaluationNotClosed(EvaluationAssignment assignment) {
-        LocalDate deadline = assignment.getProgram().getEvaluationDeadline();
-        if (deadline != null && LocalDate.now().isAfter(deadline)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "평가 마감일이 지나 제출할 수 없습니다.");
+        Instant deadline = ProgramTimes.evaluationDeadline(assignment.getProgram());
+        if (deadline != null && !Instant.now().isBefore(deadline)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "평가 마감 시각이 지나 평가할 수 없습니다.");
         }
     }
 

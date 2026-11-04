@@ -25,7 +25,8 @@ public record ApplicationDetailResponse(
         ParticipantType participantType,
         ApplicantInfo applicantInfo,
         List<FieldAnswer> fields,
-        List<ParticipantAttachmentResponse> attachments
+        List<ParticipantAttachmentResponse> attachments,
+        ProgramScheduleResponse schedule
 ) {
 
     // 양식 항목 정의와 지원자가 입력한 값을 함께 담는다. value는 미작성 시 null.

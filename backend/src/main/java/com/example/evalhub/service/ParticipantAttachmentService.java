@@ -24,7 +24,8 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
+import java.time.Instant;
+import com.example.evalhub.util.ProgramTimes;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -210,15 +211,20 @@ public class ParticipantAttachmentService {
         }
     }
 
-    // 마감일 당일까지 지원자의 첨부 변경을 허용한다. 관리자 수정은 계속 허용한다.
+    // 지원 기간 내에만 지원자의 첨부 변경을 허용한다. 관리자 수정은 계속 허용한다.
     private void validateApplicationOpen(Team team, AuthenticatedUser user) {
         if (user.role() != Role.MEMBER) {
             return;
         }
-        LocalDate deadline = team.getProgram().getApplicationDeadline();
-        if (deadline != null && LocalDate.now().isAfter(deadline)) {
+        Instant deadline = ProgramTimes.applicationDeadline(team.getProgram());
+        Instant now = Instant.now();
+        Instant start = ProgramTimes.applicationStart(team.getProgram());
+        if (start != null && now.isBefore(start)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원 시작 시각 이전에는 첨부파일을 변경할 수 없습니다.");
+        }
+        if (deadline != null && !now.isBefore(deadline)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "지원 마감일이 지나 첨부파일을 변경할 수 없습니다.");
+                    "지원 마감 시각이 지나 첨부파일을 변경할 수 없습니다.");
         }
     }
 

@@ -15,6 +15,7 @@ public record EvaluatorAssignmentResponse(
         AssignmentStatus status,
         int teamCount,
         int submittedCount,
-        int draftCount
+        int draftCount,
+        ProgramScheduleResponse schedule
 ) {
 }

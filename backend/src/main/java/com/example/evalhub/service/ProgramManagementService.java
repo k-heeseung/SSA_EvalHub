@@ -10,7 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.Instant;
+import com.example.evalhub.util.ProgramTimes;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -59,15 +60,23 @@ public class ProgramManagementService {
     public ProgramResponse createProgram(CreateProgramRequest request) {
         User manager = request.managerId() == null ? null : userRepository.findById(request.managerId())
                 .orElseThrow(() -> notFound("Manager not found."));
-        validateProgramDates(request.applicationStart(), request.applicationDeadline(), request.evaluationStart(), request.evaluationDeadline());
+        Instant applicationStart = ProgramTimes.resolve(request.applicationStartAt(), request.applicationStart(), null, null, false);
+        Instant applicationDeadline = ProgramTimes.resolve(request.applicationDeadlineAt(), request.applicationDeadline(), null, null, true);
+        Instant evaluationStart = ProgramTimes.resolve(request.evaluationStartAt(), request.evaluationStart(), null, null, false);
+        Instant evaluationDeadline = ProgramTimes.resolve(request.evaluationDeadlineAt(), request.evaluationDeadline(), null, null, true);
+        validateProgramDates(applicationStart, applicationDeadline, evaluationStart, evaluationDeadline);
 
         Program program = new Program(manager, request.title(), request.description(), request.type(), request.applicationStart(), request.applicationDeadline(), request.evaluationStart(), request.evaluationDeadline(), request.eligibilityCriteria());
+        program.updateSchedule(applicationStart, applicationDeadline, evaluationStart, evaluationDeadline);
         if (request.status() != null) {
             program.changeStatus(request.status());
         }
         program.updateAttachmentSettings(request.attachmentsEnabled(), request.maxAttachments());
         program.updateParticipantType(request.participantType());
         program.updateBonusSettings(request.bonusEnabled(), request.maxBonus());
+        if (program.getStatus() != Status.DRAFT) {
+            requirePublishDates(ProgramTimes.applicationDeadline(program), ProgramTimes.evaluationDeadline(program));
+        }
         Program saved = programRepository.save(program);
         applyAutoStatus(saved); // 지원 기간이 지정되어 있으면 접수중/평가중으로 즉시 반영
         return ProgramResponse.from(saved);
@@ -78,12 +87,16 @@ public class ProgramManagementService {
     @Transactional(readOnly = true)
     public List<ProgramResponse> findOpenPrograms() {
         return programRepository
-                .findByStatusInOrderByApplicationDeadlineAsc(List.of(Status.RECRUITING, Status.SCHEDULED)).stream()
+                .findByStatusInOrderByApplicationDeadlineAtAsc(List.of(Status.RECRUITING, Status.SCHEDULED)).stream()
+                .filter(program -> {
+                    Status status = ProgramScheduleResponse.from(program).periodStatus();
+                    return status == Status.RECRUITING || status == Status.SCHEDULED;
+                })
                 .map(ProgramResponse::from)
                 .toList();
     }
 
-    // 지원 기간(마감일)에 맞춰 전체 프로그램 상태를 동기화한다. 스케줄러가 주기적으로 호출한다.
+    // 지원·평가 기간에 맞춰 전체 프로그램 상태를 동기화한다. 스케줄러가 주기적으로 호출한다.
     @Transactional
     public int syncProgramStatuses() {
         int changed = 0;
@@ -93,26 +106,37 @@ public class ProgramManagementService {
         return changed;
     }
 
-    // 자동 전환 규칙에 따른 목표 상태를 계산한다.
-    // - 대상: SCHEDULED / RECRUITING / ACTIVE (DRAFT·INACTIVE는 매니저 수동 관리라 건드리지 않음)
-    // - 마감일이 없으면 기간을 알 수 없어 전환하지 않는다.
-    // - 지원 시작일 전 → SCHEDULED(접수 예정)
-    // - 시작일~마감일(당일 포함) → RECRUITING(접수중)
-    // - 마감일 경과 → ACTIVE(평가중)
-    private Status resolveAutoStatus(Program program) {
+    // 시작 시각은 포함하고 마감 시각은 제외한다. DRAFT와 수동 종료는 유지한다.
+    // 평가 기간 연장 시에만 INACTIVE를 다시 계산한다.
+    private Status resolveAutoStatus(Program program, boolean reopenInactive) {
         Status current = program.getStatus();
-        if (current != Status.SCHEDULED && current != Status.RECRUITING && current != Status.ACTIVE) return null;
-        LocalDate deadline = program.getApplicationDeadline();
-        if (deadline == null) return null;
-        LocalDate today = LocalDate.now();
-        LocalDate start = program.getApplicationStart();
-        if (start != null && today.isBefore(start)) return Status.SCHEDULED;
-        return today.isAfter(deadline) ? Status.ACTIVE : Status.RECRUITING;
+        if (current == Status.DRAFT) return null;
+        if (current == Status.INACTIVE && !reopenInactive) return null;
+
+        Instant applicationDeadline = ProgramTimes.applicationDeadline(program);
+        if (applicationDeadline == null) return null;
+
+        Instant now = Instant.now();
+        Instant applicationStart = ProgramTimes.applicationStart(program);
+        if (applicationStart != null && now.isBefore(applicationStart)) return Status.SCHEDULED;
+        if (now.isBefore(applicationDeadline)) return Status.RECRUITING;
+
+        Instant evaluationDeadline = ProgramTimes.evaluationDeadline(program);
+        if (evaluationDeadline != null && !now.isBefore(evaluationDeadline)) return Status.INACTIVE;
+
+        Instant evaluationStart = ProgramTimes.evaluationStart(program);
+        if (evaluationStart != null && now.isBefore(evaluationStart)) return Status.PENDING_EVALUATION;
+        return Status.ACTIVE;
     }
 
     // 단일 프로그램에 자동 상태 규칙을 적용한다. 실제로 바뀌면 true.
+    // INACTIVE인 프로그램은 그대로 둔다. 다시 열려면 applyAutoStatus(program, true)를 쓴다.
     private boolean applyAutoStatus(Program program) {
-        Status target = resolveAutoStatus(program);
+        return applyAutoStatus(program, false);
+    }
+
+    private boolean applyAutoStatus(Program program, boolean reopenInactive) {
+        Status target = resolveAutoStatus(program, reopenInactive);
         if (target != null && target != program.getStatus()) {
             program.changeStatus(target);
             return true;
@@ -133,6 +157,12 @@ public class ProgramManagementService {
                 .toList();
     }
 
+    // 지원 마감일을 바꿀 수 있는 상태.
+    // 평가가 시작된 뒤(ACTIVE)나 끝난 뒤(INACTIVE)에 접수 기간을 늘리면 이미 진행된 평가와 어긋나므로 막는다.
+    private static final Set<Status> APPLICATION_DEADLINE_EDITABLE = Set.of(
+            Status.DRAFT, Status.SCHEDULED, Status.RECRUITING, Status.PENDING_EVALUATION
+    );
+
     // 프로그램 기본 정보(제목, 설명, 유형, 담당자)를 수정한다.
     @Transactional
     public ProgramResponse updateProgram(Long programId, UpdateProgramRequest request) {
@@ -142,51 +172,90 @@ public class ProgramManagementService {
         User manager = request.managerId() == null ? null : userRepository.findById(request.managerId())
                 .orElseThrow(() -> notFound("Manager not found."));
 
-        LocalDate applicationStart = request.applicationStart() == null
-                ? program.getApplicationStart() : request.applicationStart();
-        LocalDate applicationDeadline = request.applicationDeadline() == null
-                ? program.getApplicationDeadline() : request.applicationDeadline();
-        LocalDate evaluationStart = request.evaluationStart() == null
-                ? program.getEvaluationStart() : request.evaluationStart();
-        LocalDate evaluationDeadline = request.evaluationDeadline() == null
-                ? program.getEvaluationDeadline() : request.evaluationDeadline();
-        validateProgramDates(applicationStart, applicationDeadline, evaluationStart, evaluationDeadline);
+        Instant applicationStart = ProgramTimes.resolve(request.applicationStartAt(), request.applicationStart(),
+                program.getApplicationStart(), ProgramTimes.applicationStart(program), false);
+        Instant applicationDeadline = ProgramTimes.resolve(request.applicationDeadlineAt(), request.applicationDeadline(),
+                program.getApplicationDeadline(), ProgramTimes.applicationDeadline(program), true);
+        Instant evaluationStart = ProgramTimes.resolve(request.evaluationStartAt(), request.evaluationStart(),
+                program.getEvaluationStart(), ProgramTimes.evaluationStart(program), false);
+        Instant evaluationDeadline = ProgramTimes.resolve(request.evaluationDeadlineAt(), request.evaluationDeadline(),
+                program.getEvaluationDeadline(), ProgramTimes.evaluationDeadline(program), true);
+        boolean scheduleChanged = !Objects.equals(ProgramTimes.applicationStart(program), applicationStart)
+                || !Objects.equals(ProgramTimes.applicationDeadline(program), applicationDeadline)
+                || !Objects.equals(ProgramTimes.evaluationStart(program), evaluationStart)
+                || !Objects.equals(ProgramTimes.evaluationDeadline(program), evaluationDeadline);
+        if (scheduleChanged) validateProgramDates(applicationStart, applicationDeadline, evaluationStart, evaluationDeadline);
+
+        boolean applicationDeadlineChanged = !Objects.equals(ProgramTimes.applicationDeadline(program), applicationDeadline);
+        if (applicationDeadlineChanged && !APPLICATION_DEADLINE_EDITABLE.contains(program.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Application deadline cannot be changed once the evaluation period has started.");
+        }
+
+        // 평가 마감일이 실제로 바뀐 경우에만 완료(INACTIVE) 상태를 다시 연다.
+        // 제목만 고쳤는데 매니저가 수동으로 종료한 프로그램이 되살아나면 안 되기 때문이다.
+        boolean evaluationDeadlineChanged = !Objects.equals(ProgramTimes.evaluationDeadline(program), evaluationDeadline);
 
         program.update(request.title(), request.description(), request.type(), manager, request.applicationStart(), request.applicationDeadline(), request.evaluationStart(), request.evaluationDeadline(), request.eligibilityCriteria());
+        program.updateSchedule(applicationStart, applicationDeadline, evaluationStart, evaluationDeadline);
         program.updateAttachmentSettings(request.attachmentsEnabled(), request.maxAttachments());
         program.updateParticipantType(request.participantType());
         program.updateBonusSettings(request.bonusEnabled(), request.maxBonus());
-        applyAutoStatus(program); // 마감일이 바뀌면 접수중/평가중을 즉시 재계산
+        // 기간이 바뀌면 즉시 재계산한다. 평가 마감일을 늘렸다면 INACTIVE(평가 완료)도 다시 연다.
+        applyAutoStatus(program, evaluationDeadlineChanged);
         return ProgramResponse.from(program);
     }
 
+    // 개설(공개)되는 프로그램은 지원 마감일과 평가 마감일이 모두 있어야 한다. 임시 저장(DRAFT)은 예외.
+    // 지원 마감일이 없으면 resolveAutoStatus가 null을 반환해 자동 전환이 아예 돌지 않고,
+    // 평가 마감일이 없으면 평가 완료 시점을 판단할 수 없어 계속 ACTIVE(평가 진행)로 남는다.
+    private void requirePublishDates(Instant applicationDeadline, Instant evaluationDeadline) {
+        if (applicationDeadline == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Application deadline is required to publish a program.");
+        }
+        if (evaluationDeadline == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Evaluation deadline is required to publish a program.");
+        }
+    }
+
     private void validateProgramDates(
-            LocalDate applicationStart,
-            LocalDate applicationDeadline,
-            LocalDate evaluationStart,
-            LocalDate evaluationDeadline
+            Instant applicationStart,
+            Instant applicationDeadline,
+            Instant evaluationStart,
+            Instant evaluationDeadline
     ) {
         if (applicationStart != null && applicationDeadline != null
-                && applicationStart.isAfter(applicationDeadline)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Application start must not be after its deadline.");
+                && !applicationStart.isBefore(applicationDeadline)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Application start must be before its deadline.");
         }
         if (applicationDeadline != null && evaluationStart != null
                 && evaluationStart.isBefore(applicationDeadline)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Evaluation start must not be before the application deadline.");
         }
         if (evaluationStart != null && evaluationDeadline != null
-                && evaluationDeadline.isBefore(evaluationStart)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Evaluation deadline must not be before its start.");
+                && !evaluationStart.isBefore(evaluationDeadline)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Evaluation deadline must be after its start.");
         }
     }
 
-    // 프로그램 상태를 ACTIVE ↔ INACTIVE로 전환한다.
+    // 매니저가 프로그램 상태를 직접 바꾼다. 지정한 값을 그대로 반영한다.
     @Transactional
     public ProgramResponse changeStatus(Long programId, ChangeStatusRequest request) {
         Program program = programRepository.findById(programId)
                 .orElseThrow(() -> notFound("Program not found."));
 
+        Status previous = program.getStatus();
+        if (previous == Status.DRAFT && request.status() != Status.DRAFT) {
+            requirePublishDates(ProgramTimes.applicationDeadline(program), ProgramTimes.evaluationDeadline(program));
+        }
         program.changeStatus(request.status());
+        // 임시 저장(DRAFT)에서 개설하는 경우에는 요청 값과 무관하게 오늘 날짜 기준으로 상태를 다시 잡는다.
+        // (프론트가 개설 시 ACTIVE를 보내지만, 접수 시작 전이면 SCHEDULED여야 한다.)
+        if (previous == Status.DRAFT && request.status() != Status.DRAFT) {
+            applyAutoStatus(program);
+        }
         return ProgramResponse.from(program);
     }
 
