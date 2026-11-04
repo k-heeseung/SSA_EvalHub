@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getApplication, saveDraft, submitApplication } from '../api/applications';
 import { uploadAttachment, deleteAttachment } from '../api/attachments';
+import { uploadSelectionError, uploadFilesSequentially, uploadResultMessage } from '../utils/attachmentUploads';
 import { isFileField, formatFileSize } from '../utils/applicant';
 import { formatPhone, formatPhoneInput, isValidPhone, toDigits } from '../utils/phone';
 import FieldInput from '../components/FieldInput';
@@ -111,7 +112,10 @@ export default function ApplicantFormPage() {
   const loading = applicationQuery.isPending;
   const saveMutation = useMutation({ mutationFn: (payload) => saveDraft(applicationId, payload) });
   const submitMutation = useMutation({ mutationFn: (payload) => submitApplication(applicationId, payload) });
-  const uploadMutation = useMutation({ mutationFn: (file) => uploadAttachment(app.teamId, file) });
+  const uploadMutation = useMutation({
+    mutationFn: (files) => uploadFilesSequentially(files,
+      (file) => uploadAttachment(app.teamId, file), () => applicationQuery.refetch()),
+  });
   const deleteAttachmentMutation = useMutation({ mutationFn: deleteAttachment });
   const saving = saveMutation.isPending;
   const submitting = submitMutation.isPending;
@@ -259,18 +263,16 @@ export default function ApplicantFormPage() {
   };
 
   const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!canUploadMore || deadlinePassed || uploading) { e.target.value = ''; return; }
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length || uploading || deadlinePassed || !attachmentsEnabled) return;
+    const selectionError = uploadSelectionError(files.length, attachments.length, maxAttachments);
+    setMessage('');
+    if (selectionError) { setError(selectionError); return; }
     setError('');
-    try {
-      await uploadMutation.mutateAsync(file);
-      await applicationQuery.refetch();
-    } catch (err) {
-      setError(err.response?.data?.message || 'PDF 업로드에 실패했습니다. (PDF 형식, 최대 20MB)');
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    const result = await uploadMutation.mutateAsync(files);
+    if (result.failed.length || result.refreshFailed) setError(uploadResultMessage(result));
+    else setMessage(uploadResultMessage(result));
   };
 
   const handleDeleteAttachment = async (attachmentId) => {
@@ -446,7 +448,7 @@ export default function ApplicantFormPage() {
             ) : (
               <p className="text-xs text-gray-400 text-center py-2">최대 개수까지 첨부했습니다.</p>
             )}
-            <input ref={fileInputRef} type="file" accept="application/pdf" onChange={handleUpload} className="hidden" />
+            <input ref={fileInputRef} type="file" accept="application/pdf" multiple onChange={handleUpload} className="hidden" />
           </FieldCard>
         )}
 
@@ -459,7 +461,7 @@ export default function ApplicantFormPage() {
 
       {/* 메시지 */}
       {(message || error) && (
-        <p className={`mt-4 text-sm ${error ? 'text-red-500' : 'text-green-600'}`}>{error || message}</p>
+        <p role="status" className={`mt-4 whitespace-pre-line text-sm ${error ? 'text-red-500' : 'text-green-600'}`}>{error || message}</p>
       )}
 
       {/* 하단 액션 */}

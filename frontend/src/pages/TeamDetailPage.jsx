@@ -7,6 +7,7 @@ import {
   updateTeamApplication,
 } from '../api/programs';
 import { getTeamAttachments, uploadAttachment, deleteAttachment } from '../api/attachments';
+import { uploadSelectionError, uploadFilesSequentially, uploadResultMessage } from '../utils/attachmentUploads';
 import { programTypeLabel } from '../utils/labels';
 import { normalizeFieldType, isFileType, parseCheckboxValue } from '../utils/formFields';
 import PageHeader from '../components/PageHeader';
@@ -113,7 +114,10 @@ export default function TeamDetailPage() {
   });
   const deleteTeamMutation = useMutation({ mutationFn: () => deleteTeam(programId, teamId) });
   const removeMemberMutation = useMutation({ mutationFn: (memberId) => removeTeamMember(teamId, memberId) });
-  const uploadMutation = useMutation({ mutationFn: (file) => uploadAttachment(teamId, file) });
+  const uploadMutation = useMutation({
+    mutationFn: (files) => uploadFilesSequentially(files,
+      (file) => uploadAttachment(teamId, file), () => attachmentsQuery.refetch()),
+  });
   const deleteAttachmentMutation = useMutation({ mutationFn: deleteAttachment });
   const statusChanging = statusMutation.isPending;
   const uploading = uploadMutation.isPending;
@@ -168,17 +172,13 @@ export default function TeamDetailPage() {
   };
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!canUploadAttachment || uploading) { e.target.value = ''; return; }
-    try {
-      await uploadMutation.mutateAsync(file);
-      await attachmentsQuery.refetch();
-    } catch (err) {
-      alert(err.response?.data?.message || '파일 업로드에 실패했습니다. PDF 파일만 업로드 가능합니다.');
-    } finally {
-      e.target.value = '';
-    }
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length || uploading || !program?.attachmentsEnabled) return;
+    const selectionError = uploadSelectionError(files.length, attachments.length, maxAttachments);
+    if (selectionError) { alert(selectionError); return; }
+    const result = await uploadMutation.mutateAsync(files);
+    alert(uploadResultMessage(result));
   };
 
   const handleDeleteAttachment = async (attachmentId) => {
@@ -484,6 +484,7 @@ export default function TeamDetailPage() {
                 ref={fileInputRef}
                 type="file"
                 accept="application/pdf"
+                multiple
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -761,22 +762,23 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
     onError: () => setError('저장에 실패했습니다. 잠시 후 다시 시도해주세요.'),
   });
 
-  const uploadMut = useMutation({ mutationFn: (file) => uploadAttachment(teamId, file) });
+  const [uploadMessage, setUploadMessage] = useState('');
+  const uploadMut = useMutation({
+    mutationFn: (files) => uploadFilesSequentially(files,
+      (file) => uploadAttachment(teamId, file), () => onAttachmentsChanged?.()),
+  });
   const deleteMut = useMutation({ mutationFn: (attachmentId) => deleteAttachment(attachmentId) });
 
   const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!application.attachmentsEnabled || atMax || uploadMut.isPending) { e.target.value = ''; return; }
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length || !application.attachmentsEnabled || uploadMut.isPending) return;
+    setUploadMessage('');
+    const selectionError = uploadSelectionError(files.length, attachments.length, maxAttachments);
+    if (selectionError) { setError(selectionError); return; }
     setError('');
-    try {
-      await uploadMut.mutateAsync(file);
-      onAttachmentsChanged?.();
-    } catch (err) {
-      setError(err.response?.data?.message || '파일 업로드에 실패했습니다. PDF 파일만 업로드할 수 있습니다.');
-    } finally {
-      e.target.value = '';
-    }
+    const result = await uploadMut.mutateAsync(files);
+    setUploadMessage(uploadResultMessage(result));
   };
 
   const handleDeleteAttachment = async (attachmentId) => {
@@ -893,8 +895,9 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
                 >
                   {uploadMut.isPending ? '업로드 중...' : '+ 파일 추가'}
                 </button>
-                <input ref={fileInputRef} type="file" accept="application/pdf" onChange={handleUpload} className="hidden" />
+                <input ref={fileInputRef} type="file" accept="application/pdf" multiple onChange={handleUpload} className="hidden" />
               </div>
+              {uploadMessage && <p role="status" className="mb-3 whitespace-pre-line text-sm text-gray-700">{uploadMessage}</p>}
               {attachments.length === 0 ? (
                 <p className="text-xs text-gray-400">첨부된 파일이 없습니다.</p>
               ) : (
