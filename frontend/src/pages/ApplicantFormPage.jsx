@@ -261,12 +261,13 @@ export default function ApplicantFormPage() {
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!canUploadMore || deadlinePassed || uploading) { e.target.value = ''; return; }
     setError('');
     try {
       await uploadMutation.mutateAsync(file);
       await applicationQuery.refetch();
-    } catch {
-      setError('PDF 업로드에 실패했습니다. (PDF 형식, 최대 20MB)');
+    } catch (err) {
+      setError(err.response?.data?.message || 'PDF 업로드에 실패했습니다. (PDF 형식, 최대 20MB)');
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }

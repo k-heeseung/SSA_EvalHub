@@ -51,7 +51,9 @@ class ParticipantAttachmentServiceTest {
         member = user(Role.MEMBER);
         when(team.getId()).thenReturn(1L);
         when(team.getProgram()).thenReturn(program);
-        when(teams.findById(1L)).thenReturn(Optional.of(team));
+        when(teams.findByIdForAttachmentUpload(1L)).thenReturn(Optional.of(team));
+        when(program.isAttachmentsEnabled()).thenReturn(true);
+        when(program.getMaxAttachments()).thenReturn(2);
         when(members.findByTeamIdAndMemberId(1L, 2L)).thenReturn(Optional.of(mock(TeamMember.class)));
         when(applications.findByTeamId(1L)).thenReturn(Optional.of(application));
         when(application.isSubmitted()).thenReturn(true);
@@ -115,6 +117,56 @@ class ParticipantAttachmentServiceTest {
         verifyNoInteractions(applications);
         verify(attachments, never()).save(any());
         verify(attachments, never()).delete(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Role.class, names = {"MEMBER", "MANAGER", "SUPER_ADMIN"})
+    void disabledAttachmentsRejectUploadWithoutChangingState(Role role) {
+        when(program.isAttachmentsEnabled()).thenReturn(false);
+        assertRejected(() -> service.upload(1L, pdf(), user(role)), HttpStatus.BAD_REQUEST);
+        assertUploadDidNotChangeState();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = Role.class, names = {"MEMBER", "MANAGER", "SUPER_ADMIN"})
+    void limitRejectsUploadWithoutChangingState(Role role) {
+        when(attachments.countByTeamId(1L)).thenReturn(2L);
+        assertRejected(() -> service.upload(1L, pdf(), user(role)), HttpStatus.BAD_REQUEST);
+        assertUploadDidNotChangeState();
+    }
+
+    @Test
+    void uploadBelowLimitUsesTeamLockBeforeCountingAndSaving() {
+        when(attachments.countByTeamId(1L)).thenReturn(1L);
+        service.upload(1L, pdf(), member);
+        var order = inOrder(teams, attachments);
+        order.verify(teams).findByIdForAttachmentUpload(1L);
+        order.verify(attachments).countByTeamId(1L);
+        order.verify(attachments).save(any());
+    }
+
+    @Test
+    void missingLimitDefaultsToOne() {
+        when(program.getMaxAttachments()).thenReturn(null);
+        when(attachments.countByTeamId(1L)).thenReturn(1L);
+        assertRejected(() -> service.upload(1L, pdf(), member), HttpStatus.BAD_REQUEST);
+        assertUploadDidNotChangeState();
+    }
+
+    @Test
+    void deletionRemainsAllowedWhenAttachmentsDisabledAndOverLimit() {
+        when(program.isAttachmentsEnabled()).thenReturn(false);
+        service.deleteAttachment(3L, member);
+        verify(attachments).delete(attachment);
+        assertThat(storage.resolve("old.pdf")).doesNotExist();
+    }
+
+    private void assertUploadDidNotChangeState() {
+        verifyNoInteractions(applications);
+        verify(attachments, never()).save(any());
+        verify(attachments, never()).delete(any());
+        assertThat(storage.resolve("old.pdf")).exists();
+        assertThat(storage.resolve("1")).doesNotExist();
     }
 
     private AuthenticatedUser user(Role role) {

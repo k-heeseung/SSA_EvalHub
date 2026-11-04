@@ -69,10 +69,12 @@ public class ParticipantAttachmentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only PDF files can be uploaded.");
         }
 
-        Team team = teamRepository.findById(teamId)
+        // 같은 팀의 업로드를 직렬화하여 개수 확인과 저장 사이의 동시 요청을 막는다.
+        Team team = teamRepository.findByIdForAttachmentUpload(teamId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found."));
         requireWriteAccess(team, user);
         validateApplicationOpen(team, user);
+        validateAttachmentUpload(team);
         reopenApplicationForMemberEdit(team, user);
 
         String storedFilename = UUID.randomUUID() + ".pdf";
@@ -193,6 +195,19 @@ public class ParticipantAttachmentService {
         return applicationRepository.findByTeamId(team.getId())
                 .map(Application::isSubmitted)
                 .orElse(true);
+    }
+
+    private void validateAttachmentUpload(Team team) {
+        if (!team.getProgram().isAttachmentsEnabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "첨부파일을 사용할 수 없는 프로그램입니다.");
+        }
+        Integer configuredMax = team.getProgram().getMaxAttachments();
+        int maxAttachments = configuredMax == null ? 1 : configuredMax;
+        if (attachmentRepository.countByTeamId(team.getId()) >= maxAttachments) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "첨부파일은 최대 " + maxAttachments + "개까지 업로드할 수 있습니다.");
+        }
     }
 
     // 마감일 당일까지 지원자의 첨부 변경을 허용한다. 관리자 수정은 계속 허용한다.

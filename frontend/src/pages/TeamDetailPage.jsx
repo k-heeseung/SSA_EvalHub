@@ -102,6 +102,8 @@ export default function TeamDetailPage() {
   const program = (programsQuery.data ?? []).find((item) => item.id === Number(programId)) ?? null;
   const team = teamQuery.data ?? null;
   const attachments = attachmentsQuery.data ?? [];
+  const maxAttachments = program?.maxAttachments ?? 1;
+  const canUploadAttachment = !!program?.attachmentsEnabled && attachments.length < maxAttachments;
   const teamResult = (resultsQuery.data ?? []).find((result) => result.teamId === Number(teamId)) ?? null;
   const application = applicationQuery.data ?? null;
   const loading = programsQuery.isPending || teamQuery.isPending || attachmentsQuery.isPending
@@ -168,11 +170,12 @@ export default function TeamDetailPage() {
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!canUploadAttachment || uploading) { e.target.value = ''; return; }
     try {
       await uploadMutation.mutateAsync(file);
       await attachmentsQuery.refetch();
-    } catch {
-      alert('파일 업로드에 실패했습니다. PDF 파일만 업로드 가능합니다.');
+    } catch (err) {
+      alert(err.response?.data?.message || '파일 업로드에 실패했습니다. PDF 파일만 업로드 가능합니다.');
     } finally {
       e.target.value = '';
     }
@@ -469,13 +472,13 @@ export default function TeamDetailPage() {
               </div>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
+                disabled={uploading || !canUploadAttachment}
                 className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer disabled:opacity-50"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                {uploading ? '업로드 중...' : '파일 추가'}
+                {uploading ? '업로드 중...' : !program?.attachmentsEnabled ? '첨부 비허용' : !canUploadAttachment ? '최대 개수 도달' : '파일 추가'}
               </button>
               <input
                 ref={fileInputRef}
@@ -488,13 +491,13 @@ export default function TeamDetailPage() {
 
             {attachments.length === 0 ? (
               <div
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => { if (canUploadAttachment && !uploading) fileInputRef.current?.click(); }}
                 className="text-center py-10 text-gray-400 text-sm cursor-pointer hover:bg-gray-50 transition-colors"
               >
                 <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                PDF 파일을 업로드하세요
+                {program?.attachmentsEnabled ? `PDF 파일을 업로드하세요 (최대 ${maxAttachments}개)` : '첨부파일을 사용할 수 없는 프로그램입니다.'}
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
@@ -699,8 +702,8 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
   const appInfo = application.applicantInfo || {};
   const textFields = (application.fields || []).filter((f) => !isFileType(f.fieldType));
   const attachmentsEnabled = application.attachmentsEnabled || attachments.length > 0;
-  const maxAttachments = application.maxAttachments ?? null;
-  const atMax = maxAttachments != null && attachments.length >= maxAttachments;
+  const maxAttachments = application.maxAttachments ?? 1;
+  const atMax = attachments.length >= maxAttachments;
   const fileInputRef = useRef(null);
 
   const [teamName, setTeamName] = useState(application.teamName || '');
@@ -764,12 +767,13 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!application.attachmentsEnabled || atMax || uploadMut.isPending) { e.target.value = ''; return; }
     setError('');
     try {
       await uploadMut.mutateAsync(file);
       onAttachmentsChanged?.();
-    } catch {
-      setError('파일 업로드에 실패했습니다. PDF 파일만 업로드할 수 있습니다.');
+    } catch (err) {
+      setError(err.response?.data?.message || '파일 업로드에 실패했습니다. PDF 파일만 업로드할 수 있습니다.');
     } finally {
       e.target.value = '';
     }
@@ -884,7 +888,7 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadMut.isPending || atMax}
+                  disabled={uploadMut.isPending || atMax || !application.attachmentsEnabled}
                   className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {uploadMut.isPending ? '업로드 중...' : '+ 파일 추가'}
