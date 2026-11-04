@@ -219,6 +219,15 @@ public class EvaluationService {
         EvaluationSubmission submission = submissionRepository.findByAssignmentIdAndTeamId(assignmentId, teamId)
                 .orElseGet(() -> submissionRepository.save(new EvaluationSubmission(assignment, team)));
 
+        // 요청은 현재 화면의 전체 점수 상태다. 비워서 요청에서 빠진 점수는 삭제한다.
+        Set<Long> requestedCriterionIds = requestedScores.stream()
+                .map(EvaluationScoreRequest::criterionId)
+                .collect(Collectors.toSet());
+        List<EvaluationScore> removedScores = scoreRepository.findBySubmissionId(submission.getId()).stream()
+                .filter(score -> !requestedCriterionIds.contains(score.getCriterion().getId()))
+                .toList();
+        scoreRepository.deleteAll(removedScores);
+
         for (EvaluationScoreRequest requestedScore : requestedScores) {
             EvaluationCriterion criterion = criteriaById.get(requestedScore.criterionId());
             EvaluationScore score = scoreRepository.findBySubmissionIdAndCriterionId(
