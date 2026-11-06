@@ -42,4 +42,13 @@ public class ApplicationFormField {
         this.displayOrder = displayOrder;
         this.options = options;
     }
+
+    // 항목을 제자리에서 수정한다. id가 유지되므로 이 항목에 달린 답변(ApplicationAnswer)이 보존된다.
+    public void update(String label, String fieldType, boolean required, Integer displayOrder, String options) {
+        this.label = label;
+        this.fieldType = fieldType;
+        this.required = required;
+        this.displayOrder = displayOrder;
+        this.options = options;
+    }
 }

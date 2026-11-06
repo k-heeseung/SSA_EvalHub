@@ -20,6 +20,14 @@ cd frontend && npm install && npm run dev
 
 프론트엔드 dev 서버가 `/api/*`를 `http://localhost:8080`으로 프록시하므로, 프론트엔드 코드에 백엔드 URL을 하드코딩하지 않습니다.
 
+## Windows Gradle 테스트 실행
+
+`backend/gradle.properties`의 `org.gradle.jvmargs=-Dfile.encoding=COMPAT`은 Gradle 테스트 워커의 한글 경로가 깨지는 문제를 방지합니다.
+Java 소스는 `backend/build.gradle`의 `JavaCompile.options.encoding = 'UTF-8'` 설정으로 계속 UTF-8로 컴파일합니다.
+프로젝트나 Gradle 캐시를 다른 경로로 옮기거나 Windows 시스템 인코딩을 변경할 필요는 없습니다.
+Java 21과 PostgreSQL이 준비되면 `backend`에서 PowerShell의 `.\gradlew.bat test`로 실행합니다. 추가 인코딩 옵션은 필요 없습니다.
+자세한 원인과 명령어는 `backend/CLAUDE.md`의 "Windows 한글 경로와 인코딩"을 참고하세요.
+
 ## 프론트엔드 ↔ 백엔드 API 계약
 
 | 기능 | 엔드포인트 |
@@ -30,7 +38,7 @@ cd frontend && npm install && npm run dev
 | 지원자 회원가입 | `POST /api/signup` |
 | 프로그램 CRUD | `GET/POST/PUT /api/programs` |
 | 프로그램 소속 팀 | `GET/POST /api/programs/{id}/teams` |
-| 지원 양식 항목 | `GET/PUT /api/programs/{id}/form-fields` (PUT은 전체 교체) |
+| 지원 양식 항목 | `GET/PUT /api/programs/{id}/form-fields` (PUT은 id 기준 diff — 아래 참고) |
 | 평가 기준 | `GET/POST /api/programs/{id}/criteria` |
 | 심사위원 목록 | `GET /api/evaluators` |
 | 심사 배정 | `GET/POST /api/programs/{id}/assignments` |
@@ -42,6 +50,18 @@ cd frontend && npm install && npm run dev
 
 엔드포인트를 추가하거나 변경할 때는 프론트(`src/api/`)와 백엔드 controller를 반드시 함께 수정하세요.
 
+### 지원 양식 항목 저장 (`PUT /api/programs/{id}/form-fields`)
+
+**항목을 통째로 지우고 다시 만들면 안 됩니다.** `application_answers.form_field_id`가 `on delete cascade`라, 항목을 지우는 순간 지원자가 제출한 답변이 전부 함께 삭제됩니다.
+
+그래서 이 PUT은 전체 교체가 아니라 **id 기준 diff**로 동작합니다:
+
+- `id`가 있는 항목 → 기존 행을 제자리에서 수정 (id 유지 → 답변 보존)
+- `id`가 `null` → 새 항목으로 추가
+- 요청에 없는 기존 항목 → 삭제. 단 **이미 답변이 달린 항목이면 409**로 막습니다
+
+프론트는 서버에서 받은 id를 `serverId`로 들고 있다가 저장할 때 그대로 돌려보냅니다 (`CreateProgramPage.jsx`). 화면 조작용 로컬 key인 `id`와는 별개입니다 — 새 항목의 로컬 key(`Date.now()`)를 서버 id로 보내면 안 됩니다.
+
 ## 공유 열거형 값
 
 프론트와 백엔드가 동일한 문자열 값을 사용합니다. 한쪽만 바꾸면 깨집니다.
@@ -49,7 +69,9 @@ cd frontend && npm install && npm run dev
 - **배정 상태:** `ASSIGNED` → `IN_PROGRESS` → `SUBMITTED`
 - **팀 상태:** `PENDING` | `PASSED` | `FAILED`
 - **프로그램 타입:** `MODULE_A` | `MODULE_B`
-- **프로그램 상태:** `DRAFT` → `SCHEDULED` → `RECRUITING` → `ACTIVE` → `INACTIVE` (`SCHEDULED`=접수 예정: 공개됐으나 지원 시작일 전)
+- **프로그램 상태:** `DRAFT` → `SCHEDULED` → `RECRUITING` → `PENDING_EVALUATION` → `ACTIVE` → `INACTIVE`
+  - `SCHEDULED`=접수 예정(지원 시작일 전), `PENDING_EVALUATION`=평가 대기(지원 마감 후 평가 시작일 전), `ACTIVE`=평가 진행, `INACTIVE`=평가 완료
+  - `DRAFT`를 제외한 전환은 시각에 따라 자동으로 이뤄집니다 (`ProgramManagementService.resolveAutoStatus`, 기동 직후 및 실행 완료 30초 후 `ProgramStatusScheduler`)
 - **사용자 역할:** `SUPER_ADMIN`, `MANAGER`, `EVALUATOR`, `MEMBER`
 
 ## 전화번호 저장 규칙

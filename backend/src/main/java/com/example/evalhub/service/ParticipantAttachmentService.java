@@ -1,6 +1,7 @@
 package com.example.evalhub.service;
 
 import com.example.evalhub.dto.ParticipantAttachmentResponse;
+import com.example.evalhub.dto.AttachmentBatchResponse;
 import com.example.evalhub.entity.Application;
 import com.example.evalhub.entity.ParticipantAttachment;
 import com.example.evalhub.entity.Role;
@@ -16,6 +17,10 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,16 +31,21 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import com.example.evalhub.util.ProgramTimes;
+import com.example.evalhub.util.RequestTimes;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.UUID;
 
 @Service
 public class ParticipantAttachmentService {
 
+    private static final Logger log = LoggerFactory.getLogger(ParticipantAttachmentService.class);
+
     private static final String PDF_CONTENT_TYPE = "application/pdf";
 
     private final Path storageRoot;
+    private final AttachmentFiles attachmentFiles;
     private final ParticipantAttachmentRepository attachmentRepository;
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
@@ -51,6 +61,7 @@ public class ParticipantAttachmentService {
             ApplicationRepository applicationRepository
     ) {
         this.storageRoot = Path.of(attachmentsPath).toAbsolutePath().normalize();
+        this.attachmentFiles = new AttachmentFiles(attachmentsPath);
         this.attachmentRepository = attachmentRepository;
         this.teamRepository = teamRepository;
         this.teamMemberRepository = teamMemberRepository;
@@ -61,6 +72,43 @@ public class ParticipantAttachmentService {
     // PDF 파일을 로컬 저장소에 저장하고, DB에는 조회/스트리밍에 필요한 메타데이터만 남긴다.
     @Transactional
     public ParticipantAttachmentResponse upload(Long teamId, MultipartFile file, AuthenticatedUser user) {
+        String originalFilename = validateFile(file);
+
+        // 같은 팀의 업로드를 직렬화하여 개수 확인과 저장 사이의 동시 요청을 막는다.
+        Team team = teamRepository.findByIdForAttachmentUpload(teamId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found."));
+        requireWriteAccess(team, user);
+        validateApplicationOpen(team, user);
+        validateAttachmentUpload(team, 1);
+        reopenApplicationForMemberEdit(team, user);
+
+        return storeFile(team, file, originalFilename);
+    }
+
+    // A batch has one admission instant. Never recheck the clock between its files.
+    @Transactional
+    public AttachmentBatchResponse uploadBatch(Long teamId, List<MultipartFile> files, AuthenticatedUser user) {
+        if (files == null || files.isEmpty())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "업로드할 파일을 선택해주세요.");
+        Team team = teamRepository.findByIdForAttachmentUpload(teamId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found."));
+        requireWriteAccess(team, user);
+        validateApplicationOpen(team, user);
+        validateAttachmentUpload(team, files.size());
+        List<ParticipantAttachmentResponse> uploaded = new ArrayList<>();
+        List<AttachmentBatchResponse.Failure> failed = new ArrayList<>();
+        for (MultipartFile file : files) {
+            try {
+                uploaded.add(storeFile(team, file, validateFile(file)));
+            } catch (ResponseStatusException error) {
+                failed.add(new AttachmentBatchResponse.Failure(file.getOriginalFilename(), error.getReason()));
+            }
+        }
+        if (!uploaded.isEmpty()) reopenApplicationForMemberEdit(team, user);
+        return new AttachmentBatchResponse(uploaded, failed);
+    }
+
+    private String validateFile(MultipartFile file) {
         if (file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PDF file is empty.");
         }
@@ -70,26 +118,32 @@ public class ParticipantAttachmentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only PDF files can be uploaded.");
         }
 
-        // 같은 팀의 업로드를 직렬화하여 개수 확인과 저장 사이의 동시 요청을 막는다.
-        Team team = teamRepository.findByIdForAttachmentUpload(teamId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found."));
-        requireWriteAccess(team, user);
-        validateApplicationOpen(team, user);
-        validateAttachmentUpload(team);
-        reopenApplicationForMemberEdit(team, user);
+        return originalFilename;
+    }
 
+    private ParticipantAttachmentResponse storeFile(Team team, MultipartFile file, String originalFilename) {
         String storedFilename = UUID.randomUUID() + ".pdf";
-        Path teamDirectory = storageRoot.resolve(String.valueOf(teamId)).normalize();
+        Path teamDirectory = storageRoot.resolve(String.valueOf(team.getId())).normalize();
         Path target = teamDirectory.resolve(storedFilename).normalize();
 
         if (!target.startsWith(storageRoot)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid file path.");
         }
 
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == STATUS_ROLLED_BACK) deleteStoredFile(target);
+                    else if (status == STATUS_UNKNOWN) log.error("Attachment transaction outcome unknown: {}", target);
+                }
+            });
+        }
         try {
             Files.createDirectories(teamDirectory);
             file.transferTo(target);
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+            deleteStoredFile(target);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to store PDF file.", e);
         }
 
@@ -102,7 +156,12 @@ public class ParticipantAttachmentService {
                 storageRoot.relativize(target).toString()
         );
 
-        return ParticipantAttachmentResponse.from(attachmentRepository.save(attachment));
+        try {
+            return ParticipantAttachmentResponse.from(attachmentRepository.save(attachment));
+        } catch (RuntimeException error) {
+            deleteStoredFile(target);
+            throw error;
+        }
     }
 
     // 저장된 PDF를 Resource로 로딩한다. 컨트롤러가 inline 응답 헤더를 붙여 브라우저에 전달한다.
@@ -146,17 +205,31 @@ public class ParticipantAttachmentService {
     public void deleteAttachment(Long attachmentId, AuthenticatedUser user) {
         ParticipantAttachment attachment = attachmentRepository.findById(attachmentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Attachment not found."));
+        teamRepository.findByIdForAttachmentUpload(attachment.getTeam().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found."));
         requireWriteAccess(attachment.getTeam(), user);
         validateApplicationOpen(attachment.getTeam(), user);
         reopenApplicationForMemberEdit(attachment.getTeam(), user);
 
-        Path filePath = storageRoot.resolve(attachment.getStoragePath()).normalize();
-        try {
-            Files.deleteIfExists(filePath);
-        } catch (IOException ignored) {
-        }
-
+        Path filePath = attachmentFiles.resolve(attachment.getStoragePath());
         attachmentRepository.delete(attachment);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() { deleteStoredFile(filePath); }
+            });
+        } else {
+            deleteStoredFile(filePath);
+        }
+    }
+
+    private void deleteStoredFile(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException | RuntimeException error) {
+            // Cleanup failure must never turn an already committed DB operation into an API failure.
+            log.error("Failed to clean up attachment file: {}", path, error);
+        }
     }
 
     private void requireReadAccess(Team team, AuthenticatedUser user) {
@@ -198,14 +271,14 @@ public class ParticipantAttachmentService {
                 .orElse(true);
     }
 
-    private void validateAttachmentUpload(Team team) {
+    private void validateAttachmentUpload(Team team, int additionalCount) {
         if (!team.getProgram().isAttachmentsEnabled()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "첨부파일을 사용할 수 없는 프로그램입니다.");
         }
         Integer configuredMax = team.getProgram().getMaxAttachments();
         int maxAttachments = configuredMax == null ? 1 : configuredMax;
-        if (attachmentRepository.countByTeamId(team.getId()) >= maxAttachments) {
+        if (attachmentRepository.countByTeamId(team.getId()) + additionalCount > maxAttachments) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "첨부파일은 최대 " + maxAttachments + "개까지 업로드할 수 있습니다.");
         }
@@ -217,7 +290,7 @@ public class ParticipantAttachmentService {
             return;
         }
         Instant deadline = ProgramTimes.applicationDeadline(team.getProgram());
-        Instant now = Instant.now();
+        Instant now = RequestTimes.receivedAt();
         Instant start = ProgramTimes.applicationStart(team.getProgram());
         if (start != null && now.isBefore(start)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원 시작 시각 이전에는 첨부파일을 변경할 수 없습니다.");

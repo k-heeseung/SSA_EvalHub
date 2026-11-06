@@ -4,23 +4,21 @@ import { useNavigate } from 'react-router-dom';
 import { getPrograms, deleteProgram } from '../api/programs';
 import { programTypeLabel } from '../utils/labels';
 import PageHeader from '../components/PageHeader';
+import { formatProgramPeriod, nextProgramDeadline, matchesDeadlineMonth } from '../utils/programSchedule';
 import { queryKeys } from '../query/keys';
 import { useLiveApiQuery } from '../query/useApiQuery';
+import { useScheduleNow } from '../query/useScheduleNow';
 
 const STATUS_CONFIG = {
   DRAFT:      { label: '임시 저장', badge: 'bg-gray-100 text-gray-500' },
   SCHEDULED:  { label: '접수 예정', badge: 'bg-violet-100 text-violet-700' },
   RECRUITING: { label: '지원 접수', badge: 'bg-orange-100 text-orange-600' },
+  PENDING_EVALUATION: { label: '평가 대기', badge: 'bg-sky-100 text-sky-700' },
   ACTIVE:     { label: '평가 진행', badge: 'bg-blue-100 text-blue-700' },
   INACTIVE:   { label: '완료',     badge: 'bg-green-100 text-green-700' },
 };
 
-const formatPeriod = (start, deadline) => {
-  if (start && deadline) return `${start} ~ ${deadline}`;
-  if (start) return `${start}부터`;
-  if (deadline) return `~ ${deadline}`;
-  return '미설정';
-};
+
 
 const FilterIcon = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -45,20 +43,12 @@ export default function ProgramsPage() {
   const deleteMutation = useMutation({ mutationFn: deleteProgram });
 
   // 완료(INACTIVE)된 프로그램은 맨 아래로, 나머지는 임박한 마감(지원 마감 또는 평가 마감 중 더 가까운 쪽) 순으로 정렬한다.
-  const nextDeadlineTime = (p) => {
-    const now = new Date().getTime();
-    const times = [p.applicationDeadline, p.evaluationDeadline]
-      .filter(Boolean)
-      .map((d) => new Date(d).getTime());
-    const upcoming = times.filter((t) => t >= now);
-    if (upcoming.length > 0) return Math.min(...upcoming);
-    return times.length > 0 ? Math.min(...times) : Infinity;
-  };
+  const now = useScheduleNow();
   const programs = [...rawPrograms].sort((a, b) => {
     const aDone = a.status === 'INACTIVE';
     const bDone = b.status === 'INACTIVE';
     if (aDone !== bDone) return aDone ? 1 : -1;
-    return nextDeadlineTime(a) - nextDeadlineTime(b);
+    return nextProgramDeadline(a, now) - nextProgramDeadline(b, now);
   });
 
   useEffect(() => {
@@ -79,6 +69,7 @@ export default function ProgramsPage() {
   const draftPrograms      = programs.filter((p) => p.status === 'DRAFT');
   const scheduledPrograms  = programs.filter((p) => p.status === 'SCHEDULED');
   const recruitingPrograms = programs.filter((p) => p.status === 'RECRUITING');
+  const pendingEvalPrograms = programs.filter((p) => p.status === 'PENDING_EVALUATION');
   const activePrograms     = programs.filter((p) => p.status === 'ACTIVE');
   const inactivePrograms   = programs.filter((p) => p.status === 'INACTIVE');
 
@@ -87,22 +78,13 @@ export default function ProgramsPage() {
     activeTab === 'DRAFT'      ? draftPrograms :
     activeTab === 'SCHEDULED'  ? scheduledPrograms :
     activeTab === 'RECRUITING' ? recruitingPrograms :
+    activeTab === 'PENDING_EVALUATION' ? pendingEvalPrograms :
     activeTab === 'ACTIVE'     ? activePrograms :
     inactivePrograms;
 
-  const now = new Date();
-  const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-
-  const filteredPrograms = byTab.filter((p) => {
-    if (filterType !== 'ALL' && p.type !== filterType) return false;
-    if (filterDeadline !== 'ALL' && p.applicationDeadline) {
-      const d = new Date(p.applicationDeadline);
-      if (filterDeadline === 'THIS_MONTH' && d > thisMonthEnd) return false;
-      if (filterDeadline === 'NEXT_MONTH' && d > nextMonthEnd) return false;
-    }
-    return true;
-  });
+  const filteredPrograms = byTab.filter((program) =>
+    (filterType === 'ALL' || program.type === filterType)
+    && matchesDeadlineMonth(program, filterDeadline, new Date(now)));
 
   const isFiltered = filterType !== 'ALL' || filterDeadline !== 'ALL';
 
@@ -111,6 +93,7 @@ export default function ProgramsPage() {
     { key: 'DRAFT',      label: '임시 저장', count: draftPrograms.length },
     { key: 'SCHEDULED',  label: '접수 예정', count: scheduledPrograms.length },
     { key: 'RECRUITING', label: '모집 중',   count: recruitingPrograms.length },
+    { key: 'PENDING_EVALUATION', label: '평가 대기', count: pendingEvalPrograms.length },
     { key: 'ACTIVE',     label: '진행 중',   count: activePrograms.length },
     { key: 'INACTIVE',   label: '완료',     count: inactivePrograms.length },
   ];
@@ -360,13 +343,13 @@ function ProgramCard({ program, onManage, onEdit, onContinue, onDelete }) {
           <div className="rounded-lg bg-gray-50 px-3 py-2.5">
             <p className="text-xs text-gray-400 mb-1">지원 기간</p>
             <p className="text-sm font-medium text-gray-700">
-              {formatPeriod(program.applicationStart, program.applicationDeadline)}
+              {formatProgramPeriod(program, 'application')}
             </p>
           </div>
           <div className="rounded-lg bg-blue-50/60 px-3 py-2.5">
             <p className="text-xs text-blue-500 mb-1">평가 기간</p>
             <p className="text-sm font-medium text-gray-700">
-              {formatPeriod(program.evaluationStart, program.evaluationDeadline)}
+              {formatProgramPeriod(program, 'evaluation')}
             </p>
           </div>
         </div>

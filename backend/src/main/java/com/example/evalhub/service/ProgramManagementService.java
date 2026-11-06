@@ -12,13 +12,20 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import com.example.evalhub.util.ProgramTimes;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class ProgramManagementService {
+
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
 
     private final ProgramRepository programRepository;
     private final UserRepository userRepository;
@@ -28,6 +35,7 @@ public class ProgramManagementService {
     private final EvaluationAssignmentRepository assignmentRepository;
     private final ApplicationFormFieldRepository formFieldRepository;
     private final ApplicationRepository applicationRepository;
+    private final ApplicationAnswerRepository answerRepository;
     private final ParticipantAttachmentRepository attachmentRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -40,6 +48,7 @@ public class ProgramManagementService {
             EvaluationAssignmentRepository assignmentRepository,
             ApplicationFormFieldRepository formFieldRepository,
             ApplicationRepository applicationRepository,
+            ApplicationAnswerRepository answerRepository,
             ParticipantAttachmentRepository attachmentRepository,
             PasswordEncoder passwordEncoder
     ) {
@@ -51,6 +60,7 @@ public class ProgramManagementService {
         this.assignmentRepository = assignmentRepository;
         this.formFieldRepository = formFieldRepository;
         this.applicationRepository = applicationRepository;
+        this.answerRepository = answerRepository;
         this.attachmentRepository = attachmentRepository;
         this.passwordEncoder = passwordEncoder;
     }
@@ -73,7 +83,7 @@ public class ProgramManagementService {
         }
         program.updateAttachmentSettings(request.attachmentsEnabled(), request.maxAttachments());
         program.updateParticipantType(request.participantType());
-        program.updateBonusSettings(request.bonusEnabled(), request.maxBonus());
+        updateBonusItems(program, request.bonusEnabled(), request.maxBonus(), request.bonusItems());
         if (program.getStatus() != Status.DRAFT) {
             requirePublishDates(ProgramTimes.applicationDeadline(program), ProgramTimes.evaluationDeadline(program));
         }
@@ -169,6 +179,8 @@ public class ProgramManagementService {
         Program program = programRepository.findById(programId)
                 .orElseThrow(() -> notFound("Program not found."));
 
+        entityManager.refresh(program, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+
         User manager = request.managerId() == null ? null : userRepository.findById(request.managerId())
                 .orElseThrow(() -> notFound("Manager not found."));
 
@@ -200,9 +212,10 @@ public class ProgramManagementService {
         program.updateSchedule(applicationStart, applicationDeadline, evaluationStart, evaluationDeadline);
         program.updateAttachmentSettings(request.attachmentsEnabled(), request.maxAttachments());
         program.updateParticipantType(request.participantType());
-        program.updateBonusSettings(request.bonusEnabled(), request.maxBonus());
+        updateBonusItems(program, request.bonusEnabled(), request.maxBonus(), request.bonusItems());
         // 기간이 바뀌면 즉시 재계산한다. 평가 마감일을 늘렸다면 INACTIVE(평가 완료)도 다시 연다.
         applyAutoStatus(program, evaluationDeadlineChanged);
+        entityManager.flush();
         return ProgramResponse.from(program);
     }
 
@@ -341,34 +354,111 @@ public class ProgramManagementService {
         return teamResponse(team);
     }
 
-    // 매니저가 팀별 가산점과 사유를 입력한다. 프로그램에 가산점이 활성화되어 있어야 하며, 값은 0 이상·최대 가산점 이하여야 한다.
+    // One transaction validates every item before replacing a team's score values.
     @Transactional
     public TeamResponse updateTeamBonus(Long programId, Long teamId, UpdateTeamBonusRequest request) {
-        Team team = teamRepository.findById(teamId)
-                .orElseThrow(() -> notFound("Team not found."));
-        Program program = team.getProgram();
-        if (!program.getId().equals(programId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Team does not belong to this program.");
-        }
-        if (!program.isBonusEnabled()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bonus is not enabled for this program.");
-        }
-
-        BigDecimal score = request.bonusScore();
-        if (score != null) {
-            if (score.signum() < 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bonus score must be non-negative.");
+        Program program = programRepository.findById(programId).orElseThrow(() -> notFound("Program not found."));
+        entityManager.refresh(program, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        Team team = teamRepository.findById(teamId).orElseThrow(() -> notFound("Team not found."));
+        if (!team.getProgram().getId().equals(programId)) throw badBonus("다른 프로그램의 팀입니다.");
+        if (!program.isBonusEnabled()) throw badBonus("가산점을 사용하지 않는 프로그램입니다.");
+        if (request.scores() == null) throw badBonus("가산점 항목별 점수가 필요합니다.");
+        Map<Long, BonusItem> items = program.getBonusItems().stream()
+                .collect(Collectors.toMap(BonusItem::getId, item -> item));
+        Set<Long> seen = new HashSet<>();
+        for (UpdateTeamBonusRequest.Item value : request.scores()) {
+            if (value == null || value.itemId() == null || !items.containsKey(value.itemId()) || !seen.add(value.itemId())) {
+                throw badBonus("가산점 항목이 잘못되었거나 중복되었습니다.");
             }
-            BigDecimal max = program.getMaxBonus();
-            if (max != null && score.compareTo(max) > 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bonus score exceeds the program maximum.");
+            validateBonusNumber(value.score(), true);
+            BigDecimal max = items.get(value.itemId()).getMaxScore();
+            if (value.score() != null && max != null && value.score().compareTo(max) > 0) {
+                throw badBonus("가산점은 항목별 최대 점수를 초과할 수 없습니다.");
             }
         }
-
-        String reason = request.bonusReason() == null || request.bonusReason().isBlank()
-                ? null : request.bonusReason().trim();
-        team.updateBonus(score, reason);
+        if (!seen.equals(items.keySet())) throw badBonus("모든 가산점 항목을 포함해야 합니다. 미심사는 null로 전송하세요.");
+        for (UpdateTeamBonusRequest.Item value : request.scores()) {
+            TeamBonusScore score = team.getBonusScores().stream()
+                    .filter(v -> v.getBonusItem().getId().equals(value.itemId())).findFirst().orElse(null);
+            if (score == null) team.getBonusScores().add(new TeamBonusScore(team, items.get(value.itemId()), value.score()));
+            else score.update(value.score());
+        }
+        entityManager.flush();
         return teamResponse(team);
+    }
+
+    private void updateBonusItems(Program program, Boolean enabled, BigDecimal legacyMax, List<BonusItemRequest> requested) {
+        boolean nextEnabled = enabled == null ? program.isBonusEnabled() : enabled;
+        if (program.isEvaluationStarted() && program.isBonusEnabled() && !nextEnabled) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "심사가 시작되어 가산점 사용을 해제할 수 없습니다.");
+        }
+        // Old clients may omit the item array when updating unrelated program fields.
+        if (requested == null) {
+            if (nextEnabled && program.getBonusItems().isEmpty()) {
+                validateBonusNumber(legacyMax, true);
+                program.getBonusItems().add(new BonusItem(program, "가산점", legacyMax, 1));
+            }
+        } else {
+            if (nextEnabled && requested.isEmpty()) throw badBonus("가산점 항목을 최소 1개 등록하세요.");
+            Map<Long, BonusItem> existing = program.getBonusItems().stream()
+                    .collect(Collectors.toMap(BonusItem::getId, item -> item));
+            Set<Long> kept = new HashSet<>();
+            for (BonusItemRequest item : requested) {
+                if (item == null || item.name() == null || item.name().isBlank() || item.name().trim().length() > 255) {
+                    throw badBonus("가산점 항목명을 1~255자로 입력하세요.");
+                }
+                BonusItem old = item.id() == null ? null : existing.get(item.id());
+                if (item.id() != null && (old == null || !kept.add(item.id()))) throw badBonus("잘못되거나 중복된 가산점 항목입니다.");
+                // Only migrated unbounded items may retain their null limit.
+                validateBonusNumber(item.maxScore(), old != null && old.getMaxScore() == null);
+                boolean reduced = old != null && item.maxScore() != null
+                        && (old.getMaxScore() == null || item.maxScore().compareTo(old.getMaxScore()) < 0);
+                if (reduced && program.isEvaluationStarted()) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "심사가 시작되어 최대 가산점을 줄일 수 없습니다.");
+                }
+                if (reduced) {
+                    Long over = entityManager.createQuery("select count(s) from TeamBonusScore s where s.bonusItem.id = :id and s.score > :max", Long.class)
+                            .setParameter("id", item.id()).setParameter("max", item.maxScore()).getSingleResult();
+                    if (over > 0) throw badBonus("이미 부여한 가산점보다 최대 점수를 낮출 수 없습니다. 팀별 점수를 먼저 조정하세요.");
+                }
+            }
+            if (program.isEvaluationStarted() && !kept.containsAll(existing.keySet())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "심사가 시작되어 가산점 항목을 삭제할 수 없습니다.");
+            }
+            Set<Long> removed = new HashSet<>(existing.keySet());
+            removed.removeAll(kept);
+            if (!removed.isEmpty()) {
+                // Remove managed score references before deleting their item; DB cascade alone leaves stale JPA objects.
+                for (Team team : teamRepository.findByProgramIdOrderByIdAsc(program.getId())) {
+                    team.getBonusScores().removeIf(score -> removed.contains(score.getBonusItem().getId()));
+                }
+                entityManager.flush();
+            }
+            program.getBonusItems().removeIf(item -> !kept.contains(item.getId()));
+            for (int i = 0; i < requested.size(); i++) {
+                BonusItemRequest item = requested.get(i);
+                if (item.id() == null) program.getBonusItems().add(new BonusItem(program, item.name().trim(), item.maxScore(), i + 1));
+                else existing.get(item.id()).update(item.name().trim(), item.maxScore(), i + 1);
+            }
+            program.getBonusItems().sort(java.util.Comparator.comparingInt(BonusItem::getDisplayOrder));
+        }
+        BigDecimal max = program.getBonusItems().stream().anyMatch(item -> item.getMaxScore() == null) ? null
+                : program.getBonusItems().stream().map(BonusItem::getMaxScore).reduce(BigDecimal.ZERO, BigDecimal::add);
+        program.updateBonusSettings(nextEnabled, max);
+    }
+
+    private void validateBonusNumber(BigDecimal value, boolean nullable) {
+        if (value == null) {
+            if (!nullable) throw badBonus("최대 점수를 입력하세요.");
+            return;
+        }
+        if (value.signum() < 0 || value.stripTrailingZeros().scale() > 2 || value.compareTo(new BigDecimal("99999999.99")) > 0) {
+            throw badBonus("점수는 0 이상 99999999.99 이하, 소수 둘째 자리까지 입력하세요.");
+        }
+    }
+
+    private ResponseStatusException badBonus(String message) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
     }
 
     private TeamResponse teamResponse(Team team) {
@@ -414,20 +504,23 @@ public class ProgramManagementService {
         teamMemberRepository.delete(teamMember);
     }
 
-    // 하나의 질문은 0~10점 점수형 평가 항목이다. weight는 추후 가중 평균 계산에 사용할 수 있다.
+    // 항목별 배점을 실제 점수 상한으로 사용한다.
     @Transactional
     public CriterionResponse createCriterion(Long programId, CreateCriterionRequest request) {
         Program program = programRepository.findById(programId)
                 .orElseThrow(() -> notFound("Program not found."));
 
-        BigDecimal weight = request.weight() == null ? BigDecimal.ONE : request.weight();
+        lockCriteriaProgram(program);
+        if (program.isEvaluationStarted()) throw criteriaLocked();
+        validateCriterionMaxScore(request.maxScore());
         EvaluationCriterion criterion = new EvaluationCriterion(
                 program,
                 request.name(),
                 request.description(),
-                weight,
+                BigDecimal.ONE,
                 request.displayOrder()
         );
+        criterion.updateMaxScore(request.maxScore());
         return CriterionResponse.from(criterionRepository.save(criterion));
     }
 
@@ -448,8 +541,13 @@ public class ProgramManagementService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Criterion does not belong to this program.");
         }
 
-        BigDecimal weight = request.weight() == null ? criterion.getWeight() : request.weight();
-        criterion.update(request.name(), request.description(), weight, request.displayOrder());
+        lockCriteriaProgram(criterion.getProgram());
+        validateCriterionMaxScore(request.maxScore());
+        if (criterion.getProgram().isEvaluationStarted()
+                && (request.maxScore().compareTo(criterion.getMaxScore()) != 0
+                || !java.util.Objects.equals(request.displayOrder(), criterion.getDisplayOrder()))) throw criteriaLocked();
+        criterion.update(request.name(), request.description(), criterion.getWeight(), request.displayOrder());
+        criterion.updateMaxScore(request.maxScore());
         return CriterionResponse.from(criterion);
     }
 
@@ -461,7 +559,25 @@ public class ProgramManagementService {
         if (!criterion.getProgram().getId().equals(programId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Criterion does not belong to this program.");
         }
+        lockCriteriaProgram(criterion.getProgram());
+        if (criterion.getProgram().isEvaluationStarted()) throw criteriaLocked();
         criterionRepository.delete(criterion);
+    }
+
+    private void lockCriteriaProgram(Program program) {
+        entityManager.flush();
+        entityManager.refresh(program, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    private ResponseStatusException criteriaLocked() {
+        return new ResponseStatusException(HttpStatus.CONFLICT, "심사가 시작된 프로그램의 배점과 항목 구성은 변경할 수 없습니다.");
+    }
+
+    private void validateCriterionMaxScore(BigDecimal maxScore) {
+        if (maxScore == null || maxScore.signum() <= 0 || maxScore.compareTo(new BigDecimal("999999.99")) > 0
+                || maxScore.stripTrailingZeros().scale() > 2) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "배점은 0보다 크고 999999.99 이하인 소수 둘째 자리까지의 숫자여야 합니다.");
+        }
     }
 
     // 프로그램의 지원 양식 항목을 순서대로 조회한다.
@@ -472,27 +588,84 @@ public class ProgramManagementService {
                 .toList();
     }
 
-    // 지원 양식 항목 전체를 교체한다. 화면 순서를 displayOrder로 저장한다.
+    // 지원 양식 항목을 저장한다. 화면 순서를 displayOrder로 저장한다.
+    //
+    // 항목을 통째로 지우고 다시 만들면 application_answers의 on delete cascade 때문에
+    // 지원자가 이미 제출한 답변이 함께 사라진다. 따라서 id를 기준으로 차이만 반영한다.
+    //   - id가 있는 항목: 기존 행을 제자리에서 수정한다 (id 유지 → 답변 보존)
+    //   - id가 null인 항목: 새로 추가한다
+    //   - 요청에 없는 기존 항목: 삭제한다. 단 답변이 달려 있으면 409로 막는다
     @Transactional
     public List<FormFieldResponse> replaceFormFields(Long programId, ReplaceFormFieldsRequest request) {
         Program program = programRepository.findById(programId)
                 .orElseThrow(() -> notFound("Program not found."));
 
-        formFieldRepository.deleteByProgramId(programId);
+        Map<Long, ApplicationFormField> existing = new LinkedHashMap<>();
+        for (ApplicationFormField field : formFieldRepository.findByProgramIdOrderByDisplayOrderAsc(programId)) {
+            existing.put(field.getId(), field);
+        }
 
         List<ReplaceFormFieldsRequest.Item> items = request.fields() == null ? List.of() : request.fields();
+
+        // 남겨둘 항목을 먼저 가려낸다. 나머지가 삭제 대상이다.
+        Set<Long> keptIds = new HashSet<>();
+        for (ReplaceFormFieldsRequest.Item item : items) {
+            if (item.id() == null) continue;
+            if (!existing.containsKey(item.id())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Form field " + item.id() + " does not belong to this program.");
+            }
+            if (!keptIds.add(item.id())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Duplicate form field id in request: " + item.id());
+            }
+        }
+
+        List<ApplicationFormField> toDelete = existing.values().stream()
+                .filter(field -> !keptIds.contains(field.getId()))
+                .toList();
+
+        guardAnsweredFieldsNotDeleted(toDelete);
+
+        // 화면 순서(i + 1)를 displayOrder로 다시 매긴다.
+        List<ApplicationFormField> toSave = new ArrayList<>();
         for (int i = 0; i < items.size(); i++) {
             ReplaceFormFieldsRequest.Item item = items.get(i);
-            formFieldRepository.save(new ApplicationFormField(
-                    program,
-                    item.label(),
-                    item.fieldType(),
-                    item.required(),
-                    i + 1,
-                    joinOptions(item.options())
-            ));
+            String options = joinOptions(item.options());
+            if (item.id() == null) {
+                toSave.add(new ApplicationFormField(
+                        program, item.label(), item.fieldType(), item.required(), i + 1, options
+                ));
+            } else {
+                ApplicationFormField field = existing.get(item.id());
+                field.update(item.label(), item.fieldType(), item.required(), i + 1, options);
+                toSave.add(field);
+            }
         }
+
+        if (!toDelete.isEmpty()) {
+            formFieldRepository.deleteAll(toDelete);
+        }
+        formFieldRepository.saveAll(toSave);
+
         return findFormFields(programId);
+    }
+
+    // 답변이 달린 양식 항목은 삭제를 막는다. 지우면 그 항목의 모든 지원자 답변이 cascade로 사라진다.
+    private void guardAnsweredFieldsNotDeleted(List<ApplicationFormField> toDelete) {
+        if (toDelete.isEmpty()) return;
+
+        Set<Long> answered = Set.copyOf(answerRepository.findAnsweredFieldIds(
+                toDelete.stream().map(ApplicationFormField::getId).toList()
+        ));
+        if (answered.isEmpty()) return;
+
+        String labels = toDelete.stream()
+                .filter(field -> answered.contains(field.getId()))
+                .map(ApplicationFormField::getLabel)
+                .collect(Collectors.joining(", "));
+        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "이미 지원자가 답변한 항목은 삭제할 수 없습니다: " + labels);
     }
 
     // 선택지 목록을 줄바꿈으로 이어붙여 저장한다. 빈 값은 제외하고, 남는 게 없으면 null.
@@ -604,11 +777,8 @@ public class ProgramManagementService {
 
         EvaluationAssignment assignment = assignmentRepository.save(new EvaluationAssignment(program, evaluator));
 
-        // 완료 처리된 프로그램에 새 평가 작업이 생기면 실제 진행 상태에 맞게 다시 연다.
-        if (program.getStatus() == Status.INACTIVE) {
-            program.changeStatus(Status.ACTIVE);
-        }
-
+        // 배정이 늘어도 프로그램 상태는 건드리지 않는다.
+        // 완료된 프로그램을 다시 열려면 매니저가 평가 마감일을 연장해야 한다. (updateProgram)
         return AssignmentResponse.from(assignment);
     }
 

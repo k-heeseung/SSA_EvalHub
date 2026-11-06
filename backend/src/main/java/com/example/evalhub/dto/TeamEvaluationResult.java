@@ -10,6 +10,7 @@ public record TeamEvaluationResult(
         String teamName,
         TeamStatus teamStatus,
         BigDecimal bonusScore,
-        List<EvaluatorSubmissionSummary> evaluations
+        List<EvaluatorSubmissionSummary> evaluations,
+        List<BonusScoreResponse> bonusScores
 ) {
 }

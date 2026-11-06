@@ -28,7 +28,9 @@ public record ProgramResponse(
         long teamCount,
         long evaluatorCount,
         long submittedCount,
-        ProgramScheduleResponse schedule
+        ProgramScheduleResponse schedule,
+        java.util.List<BonusItemResponse> bonusItems,
+        boolean evaluationStarted
 ) {
 
     public static ProgramResponse from(Program program) {
@@ -57,7 +59,9 @@ public record ProgramResponse(
                 teamCount,
                 evaluatorCount,
                 submittedCount,
-                schedule
+                schedule,
+                program.getBonusItems().stream().map(BonusItemResponse::from).toList(),
+                program.isEvaluationStarted()
         );
     }
 }

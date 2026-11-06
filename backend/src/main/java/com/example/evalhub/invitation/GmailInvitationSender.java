@@ -107,7 +107,7 @@ public class GmailInvitationSender implements InvitationSender {
             throw new IllegalArgumentException("Invalid email address.");
         String body = "심사위원 계정이 생성되었습니다.\n\n로그인 아이디: " + recipient + "\n임시 비밀번호: " + password
                 + "\n\n임시 비밀번호는 로그인 후 설정 화면에서 변경할 수 있습니다.\n로그인: " + loginUrl + "\n";
-        String subject = Base64.getEncoder().encodeToString("[EvalHub] 심사위원 계정 안내".getBytes(StandardCharsets.UTF_8));
+        String subject = Base64.getEncoder().encodeToString("[평가ON] 심사위원 계정 안내".getBytes(StandardCharsets.UTF_8));
         String mime = "From: " + sender + "\r\nTo: " + recipient + "\r\nSubject: =?UTF-8?B?" + subject
                 + "?=\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
                 + Base64.getMimeEncoder().encodeToString(body.getBytes(StandardCharsets.UTF_8));

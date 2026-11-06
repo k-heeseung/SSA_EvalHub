@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { getPrograms } from '../api/programs';
 import { programTypeLabel } from '../utils/labels';
 import PageHeader from '../components/PageHeader';
+import { formatProgramPeriod, scheduleInstant } from '../utils/programSchedule';
 import { queryKeys } from '../query/keys';
 import { useLiveApiQuery } from '../query/useApiQuery';
 
@@ -10,12 +11,7 @@ const STATUS_CONFIG = {
   INACTIVE: { label: '완료',     badge: 'bg-green-100 text-green-700' },
 };
 
-const formatPeriod = (start, deadline) => {
-  if (start && deadline) return `${start} ~ ${deadline}`;
-  if (start) return `${start}부터`;
-  if (deadline) return `~ ${deadline}`;
-  return '미설정';
-};
+
 
 // 좌측 메뉴 '결과·내보내기' 화면. 결과가 존재할 수 있는 프로그램(평가 진행 중/완료)만 모아
 // 진행 중인 건 마감 임박 순으로, 완료된 건 최근 종료 순으로 보여준다. 카드를 누르면 해당
@@ -28,7 +24,7 @@ export default function ResultsPage() {
   );
 
   const deadlineTime = (p) => {
-    const t = p.evaluationDeadline ? new Date(p.evaluationDeadline).getTime() : null;
+    const t = scheduleInstant(p, 'evaluationDeadline') ? Date.parse(scheduleInstant(p, 'evaluationDeadline')) : null;
     return Number.isFinite(t) ? t : null;
   };
 
@@ -108,7 +104,7 @@ function ResultProgramCard({ program, onClick }) {
       <div className="rounded-lg bg-blue-50/60 px-3 py-2.5 mb-4">
         <p className="text-xs text-blue-500 mb-1">평가 기간</p>
         <p className="text-sm font-medium text-gray-700">
-          {formatPeriod(program.evaluationStart, program.evaluationDeadline)}
+          {formatProgramPeriod(program, 'evaluation')}
         </p>
       </div>
 

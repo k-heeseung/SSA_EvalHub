@@ -9,3 +9,12 @@ export const uploadAttachment = (teamId, file) => {
   });
 };
 export const deleteAttachment = (attachmentId) => api.delete(`/attachments/${attachmentId}`);
+
+// One HTTP request gives every selected file the same server receipt time.
+export const uploadAttachmentBatch = (teamId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('files', file));
+  return api.post(`/teams/${teamId}/attachments/batch`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};

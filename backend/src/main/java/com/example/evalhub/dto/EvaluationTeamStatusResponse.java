@@ -14,6 +14,7 @@ public record EvaluationTeamStatusResponse(
         SubmissionStatus submissionStatus,
         BigDecimal totalScore,
         BigDecimal maxTotalScore,
-        String oneLineComment
+        String oneLineComment,
+        java.util.List<BonusScoreResponse> bonusScores
 ) {
 }

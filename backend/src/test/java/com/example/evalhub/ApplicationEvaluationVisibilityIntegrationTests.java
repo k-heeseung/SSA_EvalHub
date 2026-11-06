@@ -44,6 +44,8 @@ import java.util.List;
 import java.util.UUID;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -148,6 +150,11 @@ class ApplicationEvaluationVisibilityIntegrationTests {
         User submittedMember = saveUser(Role.MEMBER);
         User evaluator = saveUser(Role.EVALUATOR);
         Program program = saveProgram(manager);
+        // 이 테스트는 기간 제한이 아니라 심사 대상과 표시 정보를 검증한다.
+        // 지원은 종료되고 심사는 진행 중인 일정으로 준비한다.
+        Instant now = Instant.now();
+        program.updateSchedule(now.minus(3, ChronoUnit.DAYS), now.minus(2, ChronoUnit.DAYS),
+                now.minus(1, ChronoUnit.DAYS), now.plus(1, ChronoUnit.DAYS));
         EvaluationAssignment assignment = assignmentRepository.save(new EvaluationAssignment(program, evaluator));
 
         var assignmentSummary = evaluationService.getEvaluatorAssignments(evaluator.getId()).getFirst();

@@ -8,6 +8,7 @@ import {
 } from '../api/programs';
 import { getEvaluators } from '../api/evaluators';
 import ProgramResultsPanel from '../components/ProgramResultsPanel';
+import { formatProgramPeriod } from '../utils/programSchedule';
 import { queryKeys } from '../query/keys';
 import { useLiveApiQuery } from '../query/useApiQuery';
 import { teamAverage, teamBonus, teamFinalScore } from '../utils/export';
@@ -18,22 +19,18 @@ const EVALUATION_STATUS = {
   COMPLETE: { label: '평가 완료', dot: 'bg-green-500', badge: 'bg-green-50 text-green-700' },
 };
 
-// 프로그램 라이프사이클: DRAFT → SCHEDULED → RECRUITING → ACTIVE → INACTIVE
+// 프로그램 라이프사이클: DRAFT → SCHEDULED → RECRUITING → PENDING_EVALUATION → ACTIVE → INACTIVE
 const PROGRAM_STATUS = {
   DRAFT:      { label: '임시 저장',      dot: 'bg-gray-400',    pill: 'bg-gray-100 text-gray-500'     },
   SCHEDULED:  { label: '접수 예정',      dot: 'bg-violet-400',  pill: 'bg-violet-100 text-violet-700' },
   RECRUITING: { label: '지원 접수',   dot: 'bg-amber-400',   pill: 'bg-amber-100 text-amber-700'   },
+  PENDING_EVALUATION: { label: '평가 대기', dot: 'bg-sky-400', pill: 'bg-sky-100 text-sky-700' },
   ACTIVE:     { label: '평가 진행', dot: 'bg-blue-500',    pill: 'bg-blue-100 text-blue-700'     },
   INACTIVE:   { label: '평가 완료',      dot: 'bg-gray-400',    pill: 'bg-gray-100 text-gray-500'     },
 };
-const PROGRAM_STATUS_ORDER = ['DRAFT', 'SCHEDULED', 'RECRUITING', 'ACTIVE', 'INACTIVE'];
+const PROGRAM_STATUS_ORDER = ['DRAFT', 'SCHEDULED', 'RECRUITING', 'PENDING_EVALUATION', 'ACTIVE', 'INACTIVE'];
 
-const formatPeriod = (start, deadline) => {
-  if (start && deadline) return `${start} ~ ${deadline}`;
-  if (start) return `${start}부터`;
-  if (deadline) return `~ ${deadline}`;
-  return '미설정';
-};
+
 
 export default function ProgramDetailPage() {
   const { programId } = useParams();
@@ -200,12 +197,12 @@ export default function ProgramDetailPage() {
                 {(PROGRAM_STATUS[program.status] ?? PROGRAM_STATUS.DRAFT).label}
               </span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
               <span className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{programTypeLabel(program.type)}</span>
               <span>·</span>
-              <span>지원 기간 {formatPeriod(program.applicationStart, program.applicationDeadline)}</span>
+              <span>지원 기간 {formatProgramPeriod(program, 'application')}</span>
               <span>·</span>
-              <span>평가 기간 {formatPeriod(program.evaluationStart, program.evaluationDeadline)}</span>
+              <span>평가 기간 {formatProgramPeriod(program, 'evaluation')}</span>
               {program.eligibilityCriteria && (
                 <>
                   <span>·</span>

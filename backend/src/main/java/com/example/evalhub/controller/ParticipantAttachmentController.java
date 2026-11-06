@@ -1,6 +1,7 @@
 package com.example.evalhub.controller;
 
 import com.example.evalhub.dto.ParticipantAttachmentResponse;
+import com.example.evalhub.dto.AttachmentBatchResponse;
 import com.example.evalhub.service.ParticipantAttachmentService;
 import com.example.evalhub.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,6 +43,14 @@ public class ParticipantAttachmentController {
             @RequestPart("file") MultipartFile file
     ) {
         return attachmentService.upload(teamId, file, user);
+    }
+
+    @Operation(summary = "PDF 여러 개 업로드", description = "files 필드로 선택 파일을 한 요청에 전송하고 서버 접수 시각으로 지원 기간을 검사합니다.")
+    @PostMapping(value = "/teams/{teamId}/attachments/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER', 'MEMBER')")
+    public AttachmentBatchResponse uploadBatch(@PathVariable Long teamId,
+            @AuthenticationPrincipal AuthenticatedUser user, @RequestPart("files") List<MultipartFile> files) {
+        return attachmentService.uploadBatch(teamId, files, user);
     }
 
     @Operation(summary = "팀 첨부파일 목록 조회")

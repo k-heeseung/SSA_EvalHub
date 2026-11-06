@@ -18,7 +18,7 @@ public record TeamResponse(
         String notes,
         ApplicantInfo applicantInfo,
         BigDecimal bonusScore,
-        String bonusReason,
+        List<BonusScoreResponse> bonusScores,
         int memberCount,
         long attachmentCount,
         List<TeamMemberResponse> members
@@ -41,7 +41,7 @@ public record TeamResponse(
                 team.getNotes(),
                 applicantInfo,
                 team.getBonusScore(),
-                team.getBonusReason(),
+                BonusScoreResponse.from(team),
                 applicantInfo.totalMemberCount(),
                 attachmentCount,
                 members

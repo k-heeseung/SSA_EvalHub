@@ -24,7 +24,7 @@ spring:
   servlet:
     multipart:
       max-file-size: 20MB
-      max-request-size: 25MB
+      max-request-size: ${EVALHUB_MAX_UPLOAD_REQUEST_SIZE:200MB}
 
 server:
   error:

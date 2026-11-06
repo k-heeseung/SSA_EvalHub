@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import javax.sql.DataSource;
 import java.time.OffsetDateTime;
+import com.example.evalhub.util.ProgramTimes;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -33,9 +34,20 @@ class ProgramScheduleMigrationTests {
                     assertThat(rows.getObject("evaluation_start_at", OffsetDateTime.class).toInstant().toString()).isEqualTo("2030-11-20T15:00:00Z");
                     assertThat(rows.getObject("evaluation_deadline_at", OffsetDateTime.class).toInstant().toString()).isEqualTo("2030-11-30T15:00:00Z");
                     assertThat(rows.getString("application_deadline")).isEqualTo("2030-11-20");
+                    var start = rows.getObject("application_start_at", OffsetDateTime.class).toInstant();
+                    var end = rows.getObject("application_deadline_at", OffsetDateTime.class).toInstant();
+                    assertThat(ProgramTimes.open(start.minusNanos(1), start, end)).isFalse();
+                    assertThat(ProgramTimes.open(start, start, end)).isTrue();
+                    assertThat(ProgramTimes.open(end.minusNanos(1), start, end)).isTrue();
+                    assertThat(ProgramTimes.open(end, start, end)).isFalse();
+                    assertThat(rows.getString("application_start")).isEqualTo("2030-11-10");
+                    assertThat(rows.getString("evaluation_start")).isEqualTo("2030-11-21");
+                    assertThat(rows.getString("evaluation_deadline")).isEqualTo("2030-11-30");
                     assertThat(rows.next()).isTrue();
                     assertThat(rows.getObject("application_start_at")).isNull();
                     assertThat(rows.getObject("application_deadline_at")).isNull();
+                    assertThat(rows.getObject("evaluation_start_at")).isNull();
+                    assertThat(rows.getObject("evaluation_deadline_at")).isNull();
                 }
             } finally {
                 // Only the unique schema created by this test is removed.

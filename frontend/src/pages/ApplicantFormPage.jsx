@@ -2,13 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getApplication, saveDraft, submitApplication } from '../api/applications';
-import { uploadAttachment, deleteAttachment } from '../api/attachments';
-import { uploadSelectionError, uploadFilesSequentially, uploadResultMessage } from '../utils/attachmentUploads';
+import { uploadAttachmentBatch, deleteAttachment } from '../api/attachments';
+import { uploadSelectionError, uploadFilesTogether, uploadResultMessage } from '../utils/attachmentUploads';
 import { isFileField, formatFileSize } from '../utils/applicant';
 import { formatPhone, formatPhoneInput, isValidPhone, toDigits } from '../utils/phone';
 import FieldInput from '../components/FieldInput';
+import { normalizeFieldType, hasCheckboxSelection } from '../utils/formFields';
 import { queryKeys } from '../query/keys';
-import { useApiQuery } from '../query/useApiQuery';
+import { useLiveApiQuery } from '../query/useApiQuery';
+import { useApplicationEditorPeriod } from '../query/useApplicationEditorPeriod';
+import { formatProgramPeriod } from '../utils/programSchedule';
+import { isApplicationPeriodError, isApplicationDeadlineError } from '../utils/applicationPeriod';
+import { useApplicationDeadlineExit } from '../query/useApplicationDeadlineExit';
+import ApplicationDeadlineDialog from '../components/ApplicationDeadlineDialog';
 
 function RequiredTag() {
   return <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-red-50 text-red-500">필수</span>;
@@ -90,6 +96,7 @@ function LabeledInput({ label, value, onChange, placeholder, type = 'text', disa
 export default function ApplicantFormPage() {
   const { applicationId } = useParams();
   const navigate = useNavigate();
+  const { exitForDeadline, deadlineNotice, confirmDeadlineExit } = useApplicationDeadlineExit();
   const fileInputRef = useRef(null);
   const hydratedApplicationRef = useRef(null);
   const queryClient = useQueryClient();
@@ -104,17 +111,32 @@ export default function ApplicantFormPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [missingRequiredFields, setMissingRequiredFields] = useState([]);
-  const applicationQuery = useApiQuery(
+  const applicationQuery = useLiveApiQuery(
     queryKeys.application(applicationId),
     () => getApplication(applicationId),
   );
   const app = applicationQuery.data ?? null;
   const loading = applicationQuery.isPending;
+  const { period, checkPeriod } = useApplicationEditorPeriod(app, queryKeys.application(applicationId), applicationQuery.dataUpdatedAt);
+  const writeBlocked = !period.applicationOpen;
+  const checkWritePeriod = (operation) => {
+    const current = checkPeriod();
+    if (current.afterDeadline) exitForDeadline(operation);
+    return current.blockedMessage;
+  };
+  const uploadBlocked = () => {
+    const blocked = checkWritePeriod('첨부파일 업로드');
+    if (blocked) return blocked;
+    const latest = queryClient.getQueryData(queryKeys.application(applicationId));
+    if (!latest?.attachmentsEnabled) return '첨부파일을 사용할 수 없는 프로그램입니다.';
+    return (latest.attachments?.length || 0) >= (latest.maxAttachments ?? 1)
+      ? `첨부파일은 최대 ${latest.maxAttachments ?? 1}개까지 업로드할 수 있습니다.` : '';
+  };
   const saveMutation = useMutation({ mutationFn: (payload) => saveDraft(applicationId, payload) });
   const submitMutation = useMutation({ mutationFn: (payload) => submitApplication(applicationId, payload) });
   const uploadMutation = useMutation({
-    mutationFn: (files) => uploadFilesSequentially(files,
-      (file) => uploadAttachment(app.teamId, file), () => applicationQuery.refetch()),
+    mutationFn: (files) => uploadFilesTogether(files,
+      (selected) => uploadAttachmentBatch(app.teamId, selected), () => applicationQuery.refetch()),
   });
   const deleteAttachmentMutation = useMutation({ mutationFn: deleteAttachment });
   const saving = saveMutation.isPending;
@@ -148,8 +170,6 @@ export default function ApplicantFormPage() {
 
   const textFields = app.fields.filter((f) => !isFileField(f.fieldType));
   const attachments = app.attachments || [];
-  const deadlinePassed = !!app.applicationDeadline
-    && new Date().toISOString().slice(0, 10) > app.applicationDeadline;
 
   // 지원 방식: 팀 지원이면 팀명 + 팀원, 개인 지원이면 본인 정보만.
   const isTeam = app.participantType === 'TEAM';
@@ -192,7 +212,11 @@ export default function ApplicantFormPage() {
         if (attachments.length === 0) missing.push(field.label);
         return;
       }
-      if (!String(values[field.fieldId] ?? '').trim()) missing.push(field.label);
+      const value = values[field.fieldId];
+      const isMissing = normalizeFieldType(field.fieldType) === 'CHECKBOX'
+        ? !hasCheckboxSelection(value)
+        : !String(value ?? '').trim();
+      if (isMissing) missing.push(field.label);
     });
 
     return [...new Set(missing)];
@@ -222,18 +246,26 @@ export default function ApplicantFormPage() {
   };
 
   const handleSaveDraft = async () => {
+    if (saving || submitting || uploading) return;
+    const blocked = checkWritePeriod('저장');
+    if (blocked) { setError(blocked); return; }
     setError('');
     setMessage('');
     try {
       const { data } = await saveMutation.mutateAsync(buildPayload());
       queryClient.setQueryData(queryKeys.application(applicationId), data);
       setMessage('임시저장되었습니다.');
-    } catch {
-      setError('임시저장에 실패했습니다.');
+    } catch (err) {
+      if (isApplicationDeadlineError(err)) { exitForDeadline('저장'); return; }
+      setError(err.response?.data?.message || '임시저장에 실패했습니다. 입력한 내용은 유지됩니다.');
+      void applicationQuery.refetch().then(() => { if (isApplicationPeriodError(err)) checkPeriod(); });
     }
   };
 
   const handleSubmit = async () => {
+    if (saving || submitting || uploading) return;
+    const blocked = checkWritePeriod('제출');
+    if (blocked) { setError(blocked); return; }
     const missing = findMissingRequiredFields();
     if (missing.length > 0) {
       setMissingRequiredFields(missing);
@@ -253,6 +285,8 @@ export default function ApplicantFormPage() {
       await submitMutation.mutateAsync(buildPayload());
       navigate(`/applicant/submissions/${applicationId}`);
     } catch (err) {
+      if (isApplicationDeadlineError(err)) { exitForDeadline('제출'); return; }
+      void applicationQuery.refetch().then(() => { if (isApplicationPeriodError(err)) checkPeriod(); });
       const serverMessage = err.response?.data?.message || '';
       if (serverMessage.includes('필수') || serverMessage.includes('입력해주세요')) {
         setMissingRequiredFields([serverMessage]);
@@ -265,22 +299,33 @@ export default function ApplicantFormPage() {
   const handleUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!files.length || uploading || deadlinePassed || !attachmentsEnabled) return;
-    const selectionError = uploadSelectionError(files.length, attachments.length, maxAttachments);
+    if (!files.length || uploading || saving || submitting || deleteAttachmentMutation.isPending) return;
+    const blocked = uploadBlocked();
+    if (blocked) { setError(blocked); return; }
+    const latest = queryClient.getQueryData(queryKeys.application(applicationId));
+    const selectionError = uploadSelectionError(files.length,
+      (latest?.attachments || attachments).length, latest?.maxAttachments ?? maxAttachments);
     setMessage('');
     if (selectionError) { setError(selectionError); return; }
     setError('');
     const result = await uploadMutation.mutateAsync(files);
+    if (result.deadlineRejected) { exitForDeadline('첨부파일 업로드'); return; }
+    if (result.periodRejected) checkPeriod();
     if (result.failed.length || result.refreshFailed) setError(uploadResultMessage(result));
     else setMessage(uploadResultMessage(result));
   };
 
   const handleDeleteAttachment = async (attachmentId) => {
+    if (uploading || saving || submitting || deleteAttachmentMutation.isPending) return;
+    const blocked = checkWritePeriod('첨부파일 삭제');
+    if (blocked) { setError(blocked); return; }
     try {
       await deleteAttachmentMutation.mutateAsync(attachmentId);
       await applicationQuery.refetch();
-    } catch {
-      setError('첨부파일 삭제에 실패했습니다.');
+    } catch (err) {
+      if (isApplicationDeadlineError(err)) { exitForDeadline('첨부파일 삭제'); return; }
+      setError(err.response?.data?.message || '첨부파일 삭제에 실패했습니다.');
+      void applicationQuery.refetch().then(() => { if (isApplicationPeriodError(err)) checkPeriod(); });
     }
   };
 
@@ -297,25 +342,29 @@ export default function ApplicantFormPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">{app.programTitle}</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {deadlinePassed
-                ? '지원 마감 · 더 이상 수정할 수 없습니다'
+              {writeBlocked
+                ? period.label
                 : app.status === 'SUBMITTED' ? '제출 완료 · 마감 전까지 수정 가능' : '작성 중'}
             </p>
           </div>
         </div>
       </div>
 
-      {/* 안내 */}
+      <p className="text-sm text-gray-500 mb-3" aria-live="polite">지원 기간 {formatProgramPeriod(app, 'application')} · {period.label}</p>
+
+      {/* 마감은 팝업에서만 안내한다. */}
+      {!deadlineNotice && (
       <div className={`flex items-center gap-2 rounded-lg border px-4 py-3 mb-5 text-sm ${
-        deadlinePassed ? 'bg-red-50 border-red-100 text-red-600' : 'bg-white border-gray-200 text-gray-500'
+        writeBlocked ? 'bg-red-50 border-red-100 text-red-600' : 'bg-white border-gray-200 text-gray-500'
       }`}>
         <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        {deadlinePassed
-          ? '지원 마감일이 지나 임시저장, 제출, 항목 수정이 모두 불가능합니다.'
+        {writeBlocked
+          ? period.blockedMessage
           : '작성 중인 내용은 임시저장할 수 있으며, 제출 후 마감 전까지 수정할 수 있습니다.'}
       </div>
+      )}
 
       {/* 진행률 */}
       <div className="mb-6">
@@ -337,33 +386,33 @@ export default function ApplicantFormPage() {
               <RequiredTag />
             </div>
             <div className="space-y-4">
-              <LabeledInput label="팀 이름" value={teamName} onChange={setTeamName} placeholder="팀 이름을 입력하세요" disabled={deadlinePassed} />
+              <LabeledInput label="팀 이름" value={teamName} onChange={setTeamName} placeholder="팀 이름을 입력하세요" disabled={writeBlocked} />
 
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-2">팀원 정보</label>
                 {/* 팀장(본인). 팀장의 연락처가 팀 대표 연락처가 된다. */}
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded flex-shrink-0 whitespace-nowrap">팀장·본인</span>
-                  <input value={pName} onChange={(e) => setPName(e.target.value)} placeholder="이름" disabled={deadlinePassed} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
-                  <input value={pEmail} onChange={(e) => setPEmail(e.target.value)} placeholder="이메일" disabled={deadlinePassed} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
-                  <input value={pPhone} onChange={(e) => setPPhone(formatPhoneInput(e.target.value))} placeholder="010-0000-0000" disabled={deadlinePassed} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
+                  <input value={pName} onChange={(e) => setPName(e.target.value)} placeholder="이름" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
+                  <input value={pEmail} onChange={(e) => setPEmail(e.target.value)} placeholder="이메일" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
+                  <input value={pPhone} onChange={(e) => setPPhone(formatPhoneInput(e.target.value))} placeholder="010-0000-0000" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
                   <span className="w-6 flex-shrink-0" />
                 </div>
                 {/* 추가 팀원 */}
                 {members.map((m, i) => (
                   <div key={i} className="flex items-center gap-2 mb-2">
                     <span className="text-xs text-gray-400 px-2 py-1 flex-shrink-0 whitespace-nowrap">팀원 {i + 1}</span>
-                    <input value={m.name} onChange={(e) => updateMember(i, 'name', e.target.value)} placeholder="이름" disabled={deadlinePassed} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
-                    <input value={m.email} onChange={(e) => updateMember(i, 'email', e.target.value)} placeholder="이메일" disabled={deadlinePassed} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
-                    <input value={m.phone} onChange={(e) => updateMember(i, 'phone', e.target.value)} placeholder="010-0000-0000" disabled={deadlinePassed} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
-                    <button onClick={() => removeMember(i)} disabled={deadlinePassed} className="w-6 flex-shrink-0 text-gray-300 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:text-gray-300">
+                    <input value={m.name} onChange={(e) => updateMember(i, 'name', e.target.value)} placeholder="이름" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
+                    <input value={m.email} onChange={(e) => updateMember(i, 'email', e.target.value)} placeholder="이메일" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
+                    <input value={m.phone} onChange={(e) => updateMember(i, 'phone', e.target.value)} placeholder="010-0000-0000" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
+                    <button onClick={() => removeMember(i)} disabled={writeBlocked} className="w-6 flex-shrink-0 text-gray-300 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:text-gray-300">
                       <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
                   </div>
                 ))}
-                <button onClick={addMember} disabled={deadlinePassed} className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors mt-1 disabled:opacity-40 disabled:cursor-default">
+                <button onClick={addMember} disabled={writeBlocked} className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors mt-1 disabled:opacity-40 disabled:cursor-default">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
@@ -379,14 +428,14 @@ export default function ApplicantFormPage() {
               <RequiredTag />
             </div>
             <div className="space-y-3">
-              <LabeledInput label="이름" value={pName} onChange={setPName} placeholder="이름" disabled={deadlinePassed} />
-              <LabeledInput label="연락처" value={pPhone} onChange={(v) => setPPhone(formatPhoneInput(v))} placeholder="010-0000-0000" disabled={deadlinePassed} />
-              <LabeledInput label="이메일" value={pEmail} onChange={setPEmail} placeholder="you@example.com" disabled={deadlinePassed} />
+              <LabeledInput label="이름" value={pName} onChange={setPName} placeholder="이름" disabled={writeBlocked} />
+              <LabeledInput label="연락처" value={pPhone} onChange={(v) => setPPhone(formatPhoneInput(v))} placeholder="010-0000-0000" disabled={writeBlocked} />
+              <LabeledInput label="이메일" value={pEmail} onChange={setPEmail} placeholder="you@example.com" disabled={writeBlocked} />
             </div>
           </FieldCard>
         )}
 
-        {/* 지원 양식 항목 (유형별 입력) */}
+        {/* 제출 받을 항목 항목 (유형별 입력) */}
         {textFields.map((field) => (
           <FieldCard key={field.fieldId}>
             <div className="flex items-center gap-2 mb-3">
@@ -397,7 +446,7 @@ export default function ApplicantFormPage() {
               field={field}
               value={values[field.fieldId] || ''}
               onChange={(v) => handleChange(field.fieldId, v)}
-              disabled={deadlinePassed}
+              disabled={writeBlocked}
             />
           </FieldCard>
         ))}
@@ -427,7 +476,7 @@ export default function ApplicantFormPage() {
                   </svg>
                   완료
                 </span>
-                <button onClick={() => handleDeleteAttachment(att.id)} disabled={deadlinePassed} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer p-1 disabled:opacity-40 disabled:cursor-default disabled:hover:text-gray-400">
+                <button onClick={() => handleDeleteAttachment(att.id)} disabled={writeBlocked || uploading || deleteAttachmentMutation.isPending} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer p-1 disabled:opacity-40 disabled:cursor-default disabled:hover:text-gray-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
@@ -435,12 +484,12 @@ export default function ApplicantFormPage() {
               </div>
             ))}
 
-            {deadlinePassed ? (
-              <p className="text-xs text-gray-400 text-center py-2">지원 마감으로 첨부파일을 추가할 수 없습니다.</p>
+            {writeBlocked ? (
+              !deadlineNotice && <p className="text-xs text-gray-400 text-center py-2">{period.blockedMessage}</p>
             ) : canUploadMore ? (
               <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
+                onClick={() => { const blocked = uploadBlocked(); if (blocked) { setError(blocked); return; } fileInputRef.current?.click(); }}
+                disabled={writeBlocked || uploading || saving || submitting}
                 className="w-full py-3 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-60"
               >
                 {uploading ? '업로드 중...' : '+ PDF 업로드'}
@@ -454,26 +503,26 @@ export default function ApplicantFormPage() {
 
         {textFields.length === 0 && !attachmentsEnabled && (
           <div className="bg-white rounded-xl border border-gray-200 py-10 text-center text-gray-400 text-sm">
-            이 프로그램에는 아직 지원 양식 항목이 없습니다.
+            추가로 제출할 항목이 없습니다. 기본 정보를 확인한 후 지원해주세요.
           </div>
         )}
       </div>
 
       {/* 메시지 */}
-      {(message || error) && (
+      {!deadlineNotice && (message || error) && (
         <p role="status" className={`mt-4 whitespace-pre-line text-sm ${error ? 'text-red-500' : 'text-green-600'}`}>{error || message}</p>
       )}
 
       {/* 하단 액션 */}
-      {deadlinePassed ? (
-        <div className="mt-6 text-center py-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-600">
-          지원 마감일이 지나 임시저장·제출이 불가능합니다.
+      {writeBlocked ? (
+        !deadlineNotice && <div className="mt-6 text-center py-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-600">
+          {period.blockedMessage}
         </div>
       ) : (
         <div className="flex items-center justify-between mt-6">
           <button
             onClick={handleSaveDraft}
-            disabled={saving}
+            disabled={writeBlocked || saving || submitting || uploading}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -483,7 +532,7 @@ export default function ApplicantFormPage() {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={writeBlocked || saving || submitting || uploading}
             className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-60"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -493,6 +542,8 @@ export default function ApplicantFormPage() {
           </button>
         </div>
       )}
+
+      <ApplicationDeadlineDialog message={deadlineNotice} onConfirm={confirmDeadlineExit} />
 
       <RequiredFieldsModal
         fields={missingRequiredFields}

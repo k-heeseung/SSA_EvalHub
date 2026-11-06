@@ -133,8 +133,8 @@ public class ProgramManagementController {
         return programManagementService.changeTeamStatus(programId, teamId, request);
     }
 
-    // 매니저가 팀별 가산점을 단독으로 입력한다.
-    @Operation(summary = "팀 가산점 입력", description = "매니저가 팀별 가산점과 사유(선택)를 입력합니다. 프로그램에 가산점이 활성화되어 있어야 하며 값은 0~최대 가산점 범위여야 합니다.")
+    // 매니저가 팀별 항목별 가산점을 입력한다.
+    @Operation(summary = "팀 가산점 입력", description = "모든 항목의 itemId와 score를 scores 배열로 전송합니다. 미심사는 null, 점수는 0~항목별 최대 점수입니다.")
     @PatchMapping("/programs/{programId}/teams/{teamId}/bonus")
     public TeamResponse updateTeamBonus(
             @PathVariable Long programId,
@@ -169,8 +169,8 @@ public class ProgramManagementController {
         programManagementService.removeTeamMember(teamId, memberId);
     }
 
-    // 평가 질문을 등록한다. 각 질문은 0~10점 점수형 항목이다.
-    @Operation(summary = "평가 질문 등록", description = "0~10점으로 채점할 평가 질문을 등록합니다.")
+    // 평가 질문을 등록한다. 각 질문의 배점이 점수 상한이다.
+    @Operation(summary = "평가 질문 등록", description = "항목별 배점을 설정할 평가 질문을 등록합니다.")
     @PostMapping("/programs/{programId}/criteria")
     public CriterionResponse createCriterion(@PathVariable Long programId, @RequestBody CreateCriterionRequest request) {
         return programManagementService.createCriterion(programId, request);
@@ -201,16 +201,16 @@ public class ProgramManagementController {
         programManagementService.deleteCriterion(programId, criterionId);
     }
 
-    // 프로그램 지원 양식 항목을 순서대로 조회한다.
-    @Operation(summary = "지원 양식 항목 조회", description = "프로그램의 지원 양식 항목을 순서대로 조회합니다.")
+    // 프로그램 제출 항목을 순서대로 조회한다.
+    @Operation(summary = "제출 항목 조회", description = "프로그램의 제출 항목을 순서대로 조회합니다.")
     @GetMapping("/programs/{programId}/form-fields")
     @PreAuthorize("permitAll()")
     public List<FormFieldResponse> findFormFields(@PathVariable Long programId) {
         return programManagementService.findFormFields(programId);
     }
 
-    // 지원 양식 항목 전체를 교체한다. (임시 저장/개설 시 화면의 전체 목록을 그대로 전송)
-    @Operation(summary = "지원 양식 항목 교체", description = "지원 양식 항목 전체를 전송된 목록으로 교체합니다. 순서는 배열 순서를 따릅니다.")
+    // 제출 항목 전체를 교체한다. (임시 저장/개설 시 화면의 전체 목록을 그대로 전송)
+    @Operation(summary = "제출 항목 교체", description = "제출 항목 전체를 전송된 목록으로 교체합니다. 순서는 배열 순서를 따릅니다.")
     @PutMapping("/programs/{programId}/form-fields")
     public List<FormFieldResponse> replaceFormFields(
             @PathVariable Long programId,

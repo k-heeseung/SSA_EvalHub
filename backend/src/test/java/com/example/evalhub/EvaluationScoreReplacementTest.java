@@ -33,6 +33,7 @@ class EvaluationScoreReplacementTest {
         service = new EvaluationService(assignments, criteria, submissions, scores,
                 mock(ParticipantAttachmentRepository.class), teams, mock(TeamMemberRepository.class),
                 mock(ApplicationRepository.class), mock(ApplicationService.class));
+        ReflectionTestUtils.setField(service, "entityManager", mock(jakarta.persistence.EntityManager.class));
         var program = mock(Program.class);
         when(program.getId()).thenReturn(1L);
         var evaluator = mock(User.class);

@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 public record CreateCriterionRequest(
         String name,
         String description,
-        BigDecimal weight,
+        BigDecimal maxScore,
         Integer displayOrder
 ) {
 }

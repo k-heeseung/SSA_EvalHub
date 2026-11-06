@@ -130,14 +130,6 @@ export default function EvaluatorsPage() {
           borderColor="border-l-green-400"
         />
         <StatCard
-          icon={<GridStatIcon className="text-purple-500" />}
-          iconBg="bg-purple-50"
-          title="총 배정 건"
-          value="—"
-          sub="전체 배정 합산"
-          borderColor="border-l-purple-400"
-        />
-        <StatCard
           icon={<ClockStatIcon className="text-amber-500" />}
           iconBg="bg-amber-50"
           title="미접속"
@@ -323,11 +315,6 @@ const UsersStatIcon = ({ className }) => (
 const CheckStatIcon = ({ className }) => (
   <svg className={`w-4 h-4 ${className}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
-  </svg>
-);
-const GridStatIcon = ({ className }) => (
-  <svg className={`w-4 h-4 ${className}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
   </svg>
 );
 const ClockStatIcon = ({ className }) => (

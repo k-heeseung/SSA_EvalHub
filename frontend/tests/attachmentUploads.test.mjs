@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { uploadSelectionError, uploadFilesSequentially, uploadResultMessage } from '../src/utils/attachmentUploads.js';
+import { uploadSelectionError, uploadFilesSequentially, uploadFilesTogether, uploadResultMessage } from '../src/utils/attachmentUploads.js';
 
 test('selection must fit remaining capacity; excess selection is rejected as a whole', () => {
   assert.equal(uploadSelectionError(1, 2, 3), '');
@@ -53,4 +53,50 @@ test('React Query refetch errors are shown separately from upload failures', asy
     async () => ({ isError: true }));
   assert.equal(result.refreshFailed, true);
   assert.deepEqual(result.succeeded, ['ok.pdf']);
+});
+
+test('selected files are sent in one batch and finish after the deadline without per-file checks', async () => {
+  const files = [{ name: 'a.pdf' }, { name: 'b.pdf' }];
+  let requests = 0;
+  let refreshed = 0;
+  const result = await uploadFilesTogether(files, async (selected) => {
+    requests++;
+    assert.equal(selected, files);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return { data: { uploaded: selected.map((file) => ({ originalFilename: file.name })), failed: [] } };
+  }, async () => { refreshed++; });
+  assert.equal(requests, 1);
+  assert.equal(refreshed, 1);
+  assert.deepEqual(result.succeeded, ['a.pdf', 'b.pdf']);
+  assert.deepEqual(result.failed, []);
+});
+
+test('batch preserves per-file success and failure results', async () => {
+  const result = await uploadFilesTogether([{ name: 'a.pdf' }, { name: 'bad.txt' }], async () => ({ data: {
+    uploaded: [{ originalFilename: 'a.pdf' }], failed: [{ name: 'bad.txt', reason: 'Only PDF' }],
+  } }), async () => {});
+  assert.deepEqual(result.succeeded, ['a.pdf']);
+  assert.deepEqual(result.failed, [{ name: 'bad.txt', reason: 'Only PDF' }]);
+  assert.equal(result.periodRejected, undefined);
+});
+
+test('late arrival rejected by the server marks the whole batch failed and refreshes', async () => {
+  let refreshed = false;
+  const result = await uploadFilesTogether([{ name: 'a.pdf' }, { name: 'b.pdf' }], async () => {
+    throw { response: { data: { message: '지원 마감' } } };
+  }, async () => { refreshed = true; });
+  assert.equal(refreshed, true);
+  assert.deepEqual(result.succeeded, []);
+  assert.equal(result.failed.length, 2);
+  assert.equal(result.failed[0].reason, '지원 마감');
+  assert.equal(result.periodRejected, true);
+  assert.equal(result.deadlineRejected, true);
+});
+
+test('batch successes survive a failed list refresh', async () => {
+  const result = await uploadFilesTogether([{ name: 'a.pdf' }], async () => ({
+    data: { uploaded: [{ originalFilename: 'a.pdf' }], failed: [] },
+  }), async () => { throw new Error('network'); });
+  assert.deepEqual(result.succeeded, ['a.pdf']);
+  assert.equal(result.refreshFailed, true);
 });

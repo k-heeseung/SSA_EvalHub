@@ -20,6 +20,9 @@ import java.util.stream.Collectors;
 @Service
 public class EvaluationService {
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     private final EvaluationAssignmentRepository assignmentRepository;
     private final EvaluationCriterionRepository criterionRepository;
     private final EvaluationSubmissionRepository submissionRepository;
@@ -116,7 +119,8 @@ public class EvaluationService {
                             submissionResponse == null ? null : submissionResponse.status(),
                             submissionResponse == null ? null : submissionResponse.totalScore(),
                             maxTotalScore,
-                            submissionResponse == null ? null : submissionResponse.oneLineComment()
+                            submissionResponse == null ? null : submissionResponse.oneLineComment(),
+                            BonusScoreResponse.from(team)
                     );
                 })
                 .toList();
@@ -184,7 +188,7 @@ public class EvaluationService {
         return save(assignmentId, teamId, evaluatorId, request, false);
     }
 
-    // 최종 제출은 모든 질문에 0~10점 점수가 있어야 가능하다.
+    // 최종 제출은 모든 질문에 항목 배점 이내의 점수가 있어야 가능하다.
     @Transactional
     public EvaluationSubmissionResponse submit(
             Long assignmentId,
@@ -204,6 +208,9 @@ public class EvaluationService {
             boolean submit
     ) {
         EvaluationAssignment assignment = findOwnedAssignment(assignmentId, evaluatorId);
+        // Preserve changes made earlier in this transaction before reloading under the program lock.
+        entityManager.flush();
+        entityManager.refresh(assignment.getProgram(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         Team team = findTeam(teamId);
         validateTeamBelongsToProgram(team, assignment.getProgram().getId());
         validateTeamIsEvaluable(team);
@@ -217,7 +224,7 @@ public class EvaluationService {
                 .collect(Collectors.toMap(EvaluationCriterion::getId, Function.identity()));
 
         List<EvaluationScoreRequest> requestedScores = request.scores() == null ? List.of() : request.scores();
-        validateScores(requestedScores, criteriaById.keySet(), submit);
+        validateScores(requestedScores, criteriaById, submit);
 
         EvaluationSubmission submission = submissionRepository.findByAssignmentIdAndTeamId(assignmentId, teamId)
                 .orElseGet(() -> submissionRepository.save(new EvaluationSubmission(assignment, team)));
@@ -254,6 +261,7 @@ public class EvaluationService {
             submission.saveDraft(totalScore, request.oneLineComment());
         }
 
+        assignment.getProgram().markEvaluationStarted();
         recomputeAssignmentStatus(assignment);
 
         return toSubmissionResponse(submission);
@@ -305,7 +313,7 @@ public class EvaluationService {
                                 );
                             })
                             .toList();
-                    return new TeamEvaluationResult(team.getId(), team.getDisplayName(), team.getStatus(), team.getBonusScore(), evaluations);
+                    return new TeamEvaluationResult(team.getId(), team.getDisplayName(), team.getStatus(), team.getBonusScore(), evaluations, BonusScoreResponse.from(team));
                 })
                 .toList();
     }
@@ -377,28 +385,32 @@ public class EvaluationService {
         }
     }
 
-    // 점수는 해당 프로그램의 질문에 대해서만 허용하고, 값은 0~10 범위로 제한한다.
+    // 점수는 해당 프로그램의 질문에 대해서만 허용하고, 값은 항목 배점 범위로 제한한다.
     private void validateScores(
             List<EvaluationScoreRequest> requestedScores,
-            Set<Long> criterionIds,
+            Map<Long, EvaluationCriterion> criteriaById,
             boolean submit
     ) {
         Set<Long> requestedCriterionIds = requestedScores.stream()
                 .map(EvaluationScoreRequest::criterionId)
                 .collect(Collectors.toSet());
 
+        if (requestedCriterionIds.size() != requestedScores.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate criterion scores.");
+        }
         for (EvaluationScoreRequest requestedScore : requestedScores) {
-            if (!criterionIds.contains(requestedScore.criterionId())) {
+            if (!criteriaById.containsKey(requestedScore.criterionId())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Criterion does not belong to this program.");
             }
             if (requestedScore.score() == null
                     || requestedScore.score().compareTo(BigDecimal.ZERO) < 0
-                    || requestedScore.score().compareTo(BigDecimal.TEN) > 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Score must be between 0 and 10.");
+                    || requestedScore.score().compareTo(criteriaById.get(requestedScore.criterionId()).getMaxScore()) > 0
+                    || requestedScore.score().stripTrailingZeros().scale() > 2) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "점수는 0 이상 항목 배점 이하이며 소수 둘째 자리까지만 입력할 수 있습니다.");
             }
         }
 
-        if (submit && !requestedCriterionIds.containsAll(criterionIds)) {
+        if (submit && !requestedCriterionIds.containsAll(criteriaById.keySet())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All criteria must be scored before submission.");
         }
     }

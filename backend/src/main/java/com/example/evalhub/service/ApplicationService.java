@@ -4,6 +4,7 @@ import com.example.evalhub.dto.*;
 import com.example.evalhub.entity.*;
 import com.example.evalhub.repository.*;
 import com.example.evalhub.util.PhoneNumbers;
+import com.example.evalhub.util.CheckboxAnswers;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import com.example.evalhub.util.ProgramTimes;
+import com.example.evalhub.util.RequestTimes;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -29,6 +31,7 @@ public class ApplicationService {
     private final ApplicationFormFieldRepository formFieldRepository;
     private final ParticipantAttachmentRepository attachmentRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AttachmentFiles attachmentFiles;
 
     public ApplicationService(
             ApplicationRepository applicationRepository,
@@ -39,7 +42,8 @@ public class ApplicationService {
             TeamMemberRepository teamMemberRepository,
             ApplicationFormFieldRepository formFieldRepository,
             ParticipantAttachmentRepository attachmentRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            AttachmentFiles attachmentFiles
     ) {
         this.applicationRepository = applicationRepository;
         this.answerRepository = answerRepository;
@@ -50,6 +54,7 @@ public class ApplicationService {
         this.formFieldRepository = formFieldRepository;
         this.attachmentRepository = attachmentRepository;
         this.passwordEncoder = passwordEncoder;
+        this.attachmentFiles = attachmentFiles;
     }
 
     // 지원자 회원가입. 역할은 항상 MEMBER로 고정하며 비밀번호 원문은 저장하지 않는다.
@@ -102,7 +107,7 @@ public class ApplicationService {
         }
 
         // 스케줄러 실행 사이에도 실제 지원 시작·마감 시각으로 판정한다.
-        if (!ProgramScheduleResponse.from(program).canApply()) {
+        if (!ProgramScheduleResponse.from(program, RequestTimes.receivedAt()).canApply()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "현재 지원을 접수하지 않는 프로그램입니다.");
         }
         return toDetail(createDraft(program, applicant, request.teamName()));
@@ -182,6 +187,10 @@ public class ApplicationService {
     public ApplicationDetailResponse submit(Long applicationId, Long applicantId, SaveApplicationRequest request) {
         Application application = getOwnedApplication(applicationId, applicantId);
         validateApplicationOpen(application);
+        if (application.getTeam() != null) {
+            teamRepository.findByIdForAttachmentUpload(application.getTeam().getId())
+                    .orElseThrow(() -> notFound("Team not found."));
+        }
         if (application.isSubmitted()) {
             application.reopen();
         } else {
@@ -344,7 +353,7 @@ public class ApplicationService {
     // 지원 마감일이 지난 프로그램은 임시저장·제출·팀 정보 수정 모두 막는다. (조회·취소는 계속 허용)
     private void validateApplicationOpen(Application application) {
         Instant deadline = ProgramTimes.applicationDeadline(application.getProgram());
-        Instant now = Instant.now();
+        Instant now = RequestTimes.receivedAt();
         Instant start = ProgramTimes.applicationStart(application.getProgram());
         if (start != null && now.isBefore(start)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원 시작 시각 이전에는 지원서를 수정할 수 없습니다.");
@@ -357,7 +366,7 @@ public class ApplicationService {
     // 평가 시작일 이후에는 지원 취소를 막는다. (이미 배정된 심사에 영향을 주므로 담당자 문의로 처리)
     private void validateCancellable(Application application) {
         Instant evaluationStart = ProgramTimes.evaluationStart(application.getProgram());
-        if (evaluationStart != null && !Instant.now().isBefore(evaluationStart)) {
+        if (evaluationStart != null && !RequestTimes.receivedAt().isBefore(evaluationStart)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "평가 시작 이후에는 지원을 취소할 수 없습니다. 담당자에게 문의해주세요.");
         }
     }
@@ -385,8 +394,16 @@ public class ApplicationService {
         Map<Long, String> answers = answerRepository.findByApplicationId(application.getId()).stream()
                 .filter(a -> a.getValue() != null)
                 .collect(Collectors.toMap(a -> a.getFormField().getId(), ApplicationAnswer::getValue));
-        boolean hasAttachment = application.getTeam() != null
-                && !attachmentRepository.findByTeamIdOrderByUploadedAtDesc(application.getTeam().getId()).isEmpty();
+        List<ParticipantAttachment> attachments = application.getTeam() == null ? List.of()
+                : attachmentRepository.findByTeamIdOrderByUploadedAtDesc(application.getTeam().getId());
+        for (ParticipantAttachment attachment : attachments) {
+            if (!attachmentFiles.isAvailable(attachment)) {
+                throw new SubmissionValidationException(
+                        "첨부파일을 읽을 수 없거나 크기가 일치하지 않습니다. 삭제 후 다시 업로드해주세요: "
+                                + attachment.getOriginalFilename());
+            }
+        }
+        boolean hasAttachment = !attachments.isEmpty();
 
         for (ApplicationFormField field : fields) {
             if (!field.isRequired()) continue;
@@ -397,6 +414,14 @@ public class ApplicationService {
                 }
             } else {
                 String value = answers.get(field.getId());
+                String type = field.getFieldType() == null ? "" : field.getFieldType().trim();
+                if (type.equalsIgnoreCase("CHECKBOX") || type.contains("체크")) {
+                    if (CheckboxAnswers.countSelections(value) == 0) {
+                        throw new SubmissionValidationException(
+                                "필수 항목을 하나 이상 선택해주세요: " + field.getLabel());
+                    }
+                    continue;
+                }
                 if (value == null || value.isBlank()) {
                     throw new SubmissionValidationException(
                             "필수 항목이 비어 있습니다: " + field.getLabel());

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getEvaluationResults } from '../api/programs';
-import { rankedTeams, exportAllTeamsExcel, exportFinalExcel, printResults } from '../utils/export';
+import { getEvaluationResults, getEvaluationResultsPdf } from '../api/programs';
+import { rankedTeams, exportAllTeamsExcel, exportFinalExcel } from '../utils/export';
+import { downloadPdfResponse } from '../utils/pdfDownload';
 import { queryKeys } from '../query/keys';
 import { useLiveApiQuery } from '../query/useApiQuery';
 
@@ -28,9 +29,11 @@ const SCORE_BUCKETS = [
 ];
 
 // 프로그램 상세 '평가 결과' 탭과 '결과·내보내기' 페이지가 공유하는 결과/내보내기 패널.
-export default function ProgramResultsPanel({ programId, program, showTopActions = true }) {
+export default function ProgramResultsPanel({ programId, program }) {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('ALL');
+  const [pdfPending, setPdfPending] = useState(false);
+  const [pdfError, setPdfError] = useState('');
   const { data: results = [], isPending: loading } = useLiveApiQuery(
     queryKeys.evaluationResults(programId),
     () => getEvaluationResults(programId),
@@ -45,6 +48,19 @@ export default function ProgramResultsPanel({ programId, program, showTopActions
     );
 
   const programTitle = program?.title || '평가 결과';
+  const downloadPdf = async (onlyPassed = false) => {
+    if (pdfPending) return;
+    setPdfPending(true);
+    setPdfError('');
+    try {
+      const response = await getEvaluationResultsPdf(programId, onlyPassed);
+      await downloadPdfResponse(response, `${programTitle}_${onlyPassed ? '최종합격' : '상세평가'}.pdf`);
+    } catch {
+      setPdfError('PDF 다운로드에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setPdfPending(false);
+    }
+  };
   const passedCount  = results.filter((r) => r.teamStatus === 'PASSED').length;
   const failedCount  = results.filter((r) => r.teamStatus === 'FAILED').length;
   const pendingCount = results.filter((r) => r.teamStatus === 'PENDING').length;
@@ -81,7 +97,7 @@ export default function ProgramResultsPanel({ programId, program, showTopActions
       icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
       color: 'bg-green-50 text-green-600',
       onClick: () => exportFinalExcel(programTitle, results),
-      onPdf: () => printResults(programTitle, results, { onlyPassed: true }),
+      onPdf: () => downloadPdf(true),
     },
     {
       title: '전체팀 평가 정보',
@@ -92,39 +108,15 @@ export default function ProgramResultsPanel({ programId, program, showTopActions
     },
     {
       title: '팀 별 상세 정보',
-      desc: '개별 PDF · 심사위원 코멘트 포함',
+      desc: 'PDF · 심사위원 코멘트 포함',
       icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z',
       color: 'bg-purple-50 text-purple-600',
-      onClick: () => printResults(programTitle, results),
+      onClick: () => downloadPdf(),
     },
   ];
 
   return (
     <div>
-      {/* 상단 내보내기 액션 */}
-      {showTopActions && (
-        <div className="flex items-center justify-end gap-2 mb-4">
-          <button
-            onClick={() => exportAllTeamsExcel(programTitle, results)}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            전체 정보 (Excel)
-          </button>
-          <button
-            onClick={() => printResults(programTitle, results, { onlyPassed: true })}
-            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            최종 결과 내보내기
-          </button>
-        </div>
-      )}
-
       {/* 통계 카드 */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         {[
@@ -273,11 +265,14 @@ export default function ProgramResultsPanel({ programId, program, showTopActions
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-gray-700 mb-1">내보내기 옵션</h3>
             <p className="text-xs text-gray-400 mb-4">원하는 형식으로 결과를 저장하세요.</p>
+            {pdfPending && <p role="status" className="text-xs text-blue-600 mb-3">PDF를 준비하고 있습니다...</p>}
+            {pdfError && <p role="alert" className="text-xs text-red-600 mb-3">{pdfError}</p>}
             <div className="space-y-2">
               {exportOptions.map((opt) => (
                 <button
                   key={opt.title}
                   onClick={opt.onClick}
+                  disabled={pdfPending}
                   className="w-full flex items-center gap-3 px-3 py-3 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors text-left cursor-pointer group"
                 >
                   <span className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${opt.color}`}>

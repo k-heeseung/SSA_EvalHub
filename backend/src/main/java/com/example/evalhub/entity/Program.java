@@ -11,6 +11,7 @@ import com.example.evalhub.util.ProgramTimes;
 
 @Entity
 @Table(name = "programs")
+@org.hibernate.annotations.DynamicUpdate
 @Getter
 @NoArgsConstructor
 public class Program {
@@ -86,8 +87,17 @@ public class Program {
     private boolean bonusEnabled = false;
 
     // 팀당 부여할 수 있는 최대 가산점. null이면 상한 없음.
-    @Column(name = "max_bonus")
+    @Column(name = "max_bonus", precision = 14, scale = 2)
     private BigDecimal maxBonus;
+
+    @OneToMany(mappedBy = "program", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder ASC, id ASC")
+    private java.util.List<BonusItem> bonusItems = new java.util.ArrayList<>();
+
+    @Column(nullable = false)
+    private boolean evaluationStarted = false;
+
+    public void markEvaluationStarted() { evaluationStarted = true; }
 
     public Program(User manager, String title, String description, ProgramType type, LocalDate applicationStart, LocalDate applicationDeadline, LocalDate evaluationStart, LocalDate evaluationDeadline, String eligibilityCriteria) {
         this.manager = manager;

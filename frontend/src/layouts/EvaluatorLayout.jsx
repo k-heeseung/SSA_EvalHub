@@ -68,7 +68,7 @@ export default function EvaluatorLayout() {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1.5">평가</p>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1.5">심사</p>
           <div className="space-y-0.5">
             <NavLink
               to="/evaluator"
@@ -82,7 +82,7 @@ export default function EvaluatorLayout() {
               }
             >
               <ClipboardIcon />
-              내 평가
+              내 심사
             </NavLink>
           </div>
         </nav>

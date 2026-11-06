@@ -1,3 +1,5 @@
+import { isApplicationPeriodError, isApplicationDeadlineError } from './applicationPeriod.js';
+
 export function uploadSelectionError(selectedCount, currentCount, maxCount) {
   const remaining = Math.max(0, maxCount - currentCount);
   return selectedCount > remaining
@@ -25,6 +27,28 @@ export async function uploadFilesSequentially(files, uploadOne, refresh) {
     refreshFailed = true;
   }
   return { succeeded, failed, refreshFailed };
+}
+
+// Admit the selected batch once; there are no per-file period checks.
+export async function uploadFilesTogether(files, uploadBatch, refresh) {
+  let succeeded = [];
+  let failed;
+  let periodRejected = false;
+  let deadlineRejected = false;
+  try {
+    const response = await uploadBatch(files);
+    succeeded = response.data.uploaded.map((file) => file.originalFilename);
+    failed = response.data.failed;
+  } catch (error) {
+    periodRejected = isApplicationPeriodError(error);
+    deadlineRejected = isApplicationDeadlineError(error);
+    const reason = error?.response?.data?.message || '업로드에 실패했습니다.';
+    failed = files.map((file) => ({ name: file.name, reason }));
+  }
+  let refreshFailed;
+  try { refreshFailed = !!(await refresh())?.isError; } catch { refreshFailed = true; }
+  return { succeeded, failed, refreshFailed,
+    ...(periodRejected ? { periodRejected } : {}), ...(deadlineRejected ? { deadlineRejected } : {}) };
 }
 
 export function uploadResultMessage({ succeeded, failed, refreshFailed }) {

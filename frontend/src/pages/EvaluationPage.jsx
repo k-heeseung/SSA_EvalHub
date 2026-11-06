@@ -1,3 +1,4 @@
+import BonusSummary from '../components/BonusSummary';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -6,10 +7,13 @@ import { FIELD_TYPE_LABEL, normalizeFieldType, parseCheckboxValue, isFileType } 
 import TeamMemberList from '../components/TeamMemberList';
 import { formatPhone } from '../utils/phone';
 
-// pdfjs 번들이 크므로 평가 화면에서 뷰어를 열 때만 로드한다.
+// pdfjs 번들이 크므로 심사 화면에서 뷰어를 열 때만 로드한다.
 const PdfViewer = lazy(() => import('../components/PdfViewer'));
 import { queryKeys } from '../query/keys';
-import { useApiQuery } from '../query/useApiQuery';
+import { useLiveApiQuery } from '../query/useApiQuery';
+import { useScheduleNow } from '../query/useScheduleNow';
+import { formatProgramPeriod, formatScheduleTime, scheduleInstant } from '../utils/programSchedule';
+import { evaluationPeriod, scheduleNow } from '../utils/evaluationPeriod';
 
 const LEFT_TABS = ['발표 자료', '지원서 정보', '팀 정보'];
 const AUTOSAVE_DELAY = 3000;
@@ -41,7 +45,7 @@ export default function EvaluationPage() {
   const [leaveAction, setLeaveAction] = useState(null);
   const [scoringOpen, setScoringOpen] = useState(true);
   const autosaveTimerRef = useRef(null);
-  const viewQuery = useApiQuery(
+  const viewQuery = useLiveApiQuery(
     queryKeys.evaluationView(assignmentId, teamId),
     () => getEvaluationView(assignmentId, teamId),
   );
@@ -57,16 +61,24 @@ export default function EvaluationPage() {
   const submitting = submitMutation.isPending;
 
   const teams = state?.teams || [];
-  const programTitle = state?.programTitle;
-  const programId = state?.programId;
+  const programTitle = view?.program?.title ?? state?.programTitle;
+  const programId = view?.program?.id ?? state?.programId;
   const currentIndex = teams.findIndex((t) => t.teamId === Number(teamId));
   const prevTeam = currentIndex > 0 ? teams[currentIndex - 1] : null;
   const nextTeam = currentIndex < teams.length - 1 ? teams[currentIndex + 1] : null;
 
   const isSubmitted = view?.submission?.status === 'SUBMITTED';
-  const evaluationStart = view?.program?.evaluationStart;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const beforeStart = !isSubmitted && !!evaluationStart && todayStr < evaluationStart;
+  const clientNow = useScheduleNow();
+  const currentNow = () => scheduleNow(view?.program?.schedule, viewQuery.dataUpdatedAt, Date.now());
+  const period = evaluationPeriod(view?.program, scheduleNow(view?.program?.schedule, viewQuery.dataUpdatedAt, clientNow));
+  const { beforeStart, afterDeadline } = period;
+  const evaluationStart = formatScheduleTime(scheduleInstant(view?.program, 'evaluationStart'));
+  const evaluationDeadline = formatScheduleTime(scheduleInstant(view?.program, 'evaluationDeadline'));
+  const periodMessage = () => {
+    const latest = evaluationPeriod(view?.program, currentNow());
+    return latest.afterDeadline ? '심사 마감 시각이 지나 저장·제출할 수 없습니다.'
+      : latest.beforeStart ? '심사 시작 전에는 저장·제출할 수 없습니다.' : '';
+  };
   // 마지막 저장/로드 시점 대비 변경 여부. 저장 스냅샷이 아직 없으면(로딩 중) 변경 없음으로 본다.
   const dirty = savedSnapshot !== null && snapshotOf(scores, comment) !== savedSnapshot;
 
@@ -108,7 +120,9 @@ export default function EvaluationPage() {
   });
 
   const persistDraft = async ({ silent = false } = {}) => {
-    if (saving || submitting) return;
+    if (saving || submitting || !view || isSubmitted) return;
+    const blocked = periodMessage();
+    if (blocked) { setMessage(blocked); return; }
     if (!silent) setMessage('');
     try {
       await draftMutation.mutateAsync(buildRequest());
@@ -116,7 +130,8 @@ export default function EvaluationPage() {
       setLastSavedAt(new Date());
       if (!silent) setMessage('임시저장 되었습니다.');
     } catch (err) {
-      if (!silent) setMessage(err.response?.data?.message || '저장에 실패했습니다.');
+      setMessage(`저장 실패: ${err.response?.data?.message || '입력한 내용은 화면에 유지됩니다.'}`);
+      void viewQuery.refetch();
     } finally {
       // pending state is managed by the mutation.
     }
@@ -126,13 +141,17 @@ export default function EvaluationPage() {
 
   // 변경사항이 있으면 일정 시간 후 자동으로 임시저장한다. (제출 완료 상태는 제외)
   useEffect(() => {
-    if (loading || isSubmitted || beforeStart || !dirty || saving || submitting) return;
+    if (loading || isSubmitted || beforeStart || afterDeadline || !dirty || saving || submitting || leaveAction) return;
     autosaveTimerRef.current = setTimeout(() => { persistDraft({ silent: true }); }, AUTOSAVE_DELAY);
     return () => clearTimeout(autosaveTimerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scores, comment, dirty, loading, isSubmitted, beforeStart, saving, submitting]);
+  }, [scores, comment, dirty, loading, isSubmitted, beforeStart, afterDeadline, saving, submitting, leaveAction, viewQuery.dataUpdatedAt]);
 
   const handleSubmit = async () => {
+    clearTimeout(autosaveTimerRef.current);
+    if (saving || submitting || !view) return;
+    const blocked = periodMessage();
+    if (blocked) { setMessage(blocked); return; }
     const isSubmittedEdit = isSubmitted && isEditingSubmitted;
     setMessage('');
     try {
@@ -140,13 +159,14 @@ export default function EvaluationPage() {
       queryClient.setQueryData(queryKeys.evaluationView(assignmentId, teamId), (current) => ({
         ...current,
         submission: res.data,
-      }));
+      }), { updatedAt: viewQuery.dataUpdatedAt });
       setSavedSnapshot(snapshotOf(scores, comment));
       setLastSavedAt(new Date());
       setIsEditingSubmitted(false);
-      setMessage(isSubmittedEdit ? '평가 수정이 완료되었습니다.' : '평가 제출이 완료되었습니다.');
+      setMessage(isSubmittedEdit ? '심사 수정이 완료되었습니다.' : '심사 제출이 완료되었습니다.');
     } catch (err) {
-      setMessage(err.response?.data?.message || '제출에 실패했습니다.');
+      setMessage(`제출 실패: ${err.response?.data?.message || '입력한 내용은 화면에 유지됩니다.'}`);
+      void viewQuery.refetch();
     } finally {
       // pending state is managed by the mutation.
     }
@@ -209,7 +229,7 @@ export default function EvaluationPage() {
   if (!view)
     return (
       <div className="h-full flex items-center justify-center">
-        <p className="text-red-500">평가 정보를 불러올 수 없습니다.</p>
+        <p className="text-red-500">심사 정보를 불러올 수 없습니다.</p>
       </div>
     );
 
@@ -222,7 +242,7 @@ export default function EvaluationPage() {
   const files = view.attachments || [];
   const activePdfIndex = Math.min(pdfIndex, Math.max(0, files.length - 1));
   const isSubmittedReadOnly = isSubmitted && !isEditingSubmitted;
-  const isReadOnly = isSubmittedReadOnly || beforeStart;
+  const isReadOnly = isSubmittedReadOnly || beforeStart || afterDeadline;
 
   // 지원자가 제출한 지원서 정보
   const application = view.application;
@@ -263,7 +283,12 @@ export default function EvaluationPage() {
           )}
           {beforeStart && (
             <span className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
-              평가 시작 전
+              심사 시작 전
+            </span>
+          )}
+          {afterDeadline && (
+            <span className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
+              심사 마감
             </span>
           )}
         </div>
@@ -299,19 +324,24 @@ export default function EvaluationPage() {
 
           {(prevTeam || nextTeam) && <div className="w-px h-5 bg-gray-200" />}
 
-          {/* 채점 패널 접기: 전체화면 대신 자료 뷰어를 384px 넓히는 수단 */}
+          {/* 심사 패널 접기: 전체화면 대신 자료 뷰어를 384px 넓히는 수단 */}
           <button
             onClick={() => setScoringOpen((v) => !v)}
-            title={scoringOpen ? '채점 패널을 접고 자료를 넓게 봅니다' : '채점 패널을 다시 펼칩니다'}
+            title={scoringOpen ? '심사 패널을 접고 자료를 넓게 봅니다' : '심사 패널을 다시 펼칩니다'}
             aria-pressed={!scoringOpen}
             className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zM15 5v14" />
             </svg>
-            {scoringOpen ? '채점 접기' : '채점 펼치기'}
+            {scoringOpen ? '심사 접기' : '심사 펼치기'}
           </button>
         </div>
+      </div>
+
+      <div className="flex-shrink-0 px-4 py-2 text-xs text-gray-500 bg-gray-50 border-b border-gray-200" aria-live="polite">
+        심사 기간 {formatProgramPeriod(view.program, 'evaluation')} · {period.label}
+        {dirty && !period.canEvaluate && <span className="ml-2 text-amber-700">저장되지 않은 변경사항이 있습니다.</span>}
       </div>
 
       {/* 본문: 좌우 분할 패널 */}
@@ -410,10 +440,10 @@ export default function EvaluationPage() {
 
             {leftTab === 1 && (
               <div className="p-6 space-y-4">
-                {/* 지원 양식 답변 */}
+                {/* 제출 받을 항목 답변 */}
                 {answerFields.length > 0 ? (
                   <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-1">지원 양식</h3>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-1">제출 받을 항목</h3>
                     <div className="divide-y divide-gray-100">
                       {answerFields.map((field) => {
                         const answer = displayAnswer(field);
@@ -433,7 +463,7 @@ export default function EvaluationPage() {
                   </div>
                 ) : (
                   <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-400">
-                    작성된 지원 양식 답변이 없습니다.
+                    작성된 제출 받을 항목 답변이 없습니다.
                   </div>
                 )}
 
@@ -545,14 +575,15 @@ export default function EvaluationPage() {
           </div>
         </div>
 
-        {/* 오른쪽 패널 - 채점 (접으면 왼쪽 자료 뷰어가 그만큼 넓어진다) */}
+        {/* 오른쪽 패널 - 심사 (접으면 왼쪽 자료 뷰어가 그만큼 넓어진다) */}
         {scoringOpen && (
         <div className="w-96 flex-shrink-0 flex flex-col bg-white overflow-hidden">
-          {/* 채점 헤더 */}
+          <div className="px-5 pt-3"><BonusSummary items={view.team.bonusScores} /></div>
+          {/* 심사 헤더 */}
           <div className="flex-shrink-0 px-5 py-3 border-b border-gray-100">
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm text-gray-500">
-                채점 진행 <span className="font-semibold text-gray-800">{scoredCount} / {criteria.length}</span> 항목
+                심사 진행 <span className="font-semibold text-gray-800">{scoredCount} / {criteria.length}</span> 항목
               </span>
               <span className="text-sm text-gray-400">총점</span>
             </div>
@@ -596,7 +627,7 @@ export default function EvaluationPage() {
             </div>
           </div>
 
-          {/* 채점 항목 */}
+          {/* 심사 항목 */}
           <div className="flex-1 overflow-auto p-4 space-y-4">
             {criteria.map((criterion) => {
               const currentScore = scores[criterion.id];
@@ -654,7 +685,7 @@ export default function EvaluationPage() {
                 onChange={(e) => setComment(e.target.value)}
                 disabled={isReadOnly}
                 maxLength={200}
-                placeholder="평가 대상에 대한 코멘트"
+                placeholder="심사 대상에 대한 코멘트"
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-default"
               />
             </div>
@@ -672,30 +703,54 @@ export default function EvaluationPage() {
               </div>
             )}
 
-            {isSubmittedReadOnly ? (
+            {afterDeadline ? (
+              <div className="px-4 py-2 text-xs text-center text-gray-500 bg-gray-50">
+                심사 마감 시각({evaluationDeadline})이 되어 더 이상 심사할 수 없습니다. 자료는 계속 확인할 수 있습니다.
+              </div>
+            ) : isSubmittedReadOnly && !beforeStart ? (
               <div className="px-4 py-2 text-xs text-center text-green-600 bg-green-50">
-                {nextTeam ? '제출 완료 · 수정하거나 다음 팀으로 이동할 수 있습니다.' : '제출 완료 · 모든 팀 평가를 마쳤습니다.'}
+                {nextTeam ? '제출 완료 · 수정하거나 다음 팀으로 이동할 수 있습니다.' : '제출 완료 · 모든 팀 심사를 마쳤습니다.'}
               </div>
             ) : beforeStart ? (
               <div className="px-4 py-2 text-xs text-center text-gray-500 bg-gray-50">
-                {evaluationStart}부터 채점할 수 있습니다. 자료는 미리 확인할 수 있습니다.
+                {evaluationStart}부터 심사할 수 있습니다. 자료는 미리 확인할 수 있습니다.
               </div>
             ) : isEditingSubmitted ? (
               <div className="px-4 py-2 text-xs text-center text-blue-600 bg-blue-50">
-                제출된 평가 수정 중 · 수정 완료 시 즉시 반영됩니다.
+                제출된 심사 수정 중 · 수정 완료 시 즉시 반영됩니다.
               </div>
             ) : (
               !allScored && criteria.length > 0 && (
                 <div className="px-4 py-2 text-xs text-center text-gray-400 bg-gray-50">
-                  모든 항목 평가 시 제출할 수 있습니다.
+                  모든 항목 심사 시 제출할 수 있습니다.
                 </div>
               )
             )}
 
-            {isSubmittedReadOnly ? (
+            {afterDeadline ? (
               <div className="flex gap-2 p-3">
                 <button
-                  onClick={() => { setIsEditingSubmitted(true); setMessage(''); }}
+                  onClick={goToTeamList}
+                  className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  팀 목록으로
+                </button>
+                {nextTeam && (
+                  <button
+                    onClick={() => navigateToTeam(nextTeam)}
+                    className="flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    다음 팀
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ) : isSubmittedReadOnly && !beforeStart ? (
+              <div className="flex gap-2 p-3">
+                <button
+                  onClick={() => { const blocked = periodMessage(); if (blocked) { setMessage(blocked); return; } setIsEditingSubmitted(true); setMessage(''); }}
                   className="flex-1 py-2.5 border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors cursor-pointer"
                 >
                   수정하기
@@ -773,7 +828,7 @@ export default function EvaluationPage() {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || !allScored}
+                  disabled={saving || submitting || !allScored}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 cursor-pointer flex items-center justify-center gap-1.5 ${
                     allScored
                       ? 'bg-blue-600 text-white hover:bg-blue-700'
@@ -824,7 +879,7 @@ function ScoreInput({ value, maxScore, onChange, disabled = false }) {
     const raw = e.target.value;
     if (raw === '') { onChange(''); return; }
     const n = Number(raw);
-    if (Number.isNaN(n)) return;
+    if (!Number.isFinite(n) || !/^\d+(\.\d{0,2})?$/.test(raw)) return;
     onChange(Math.max(0, Math.min(maxScore, n)));
   };
 
@@ -835,7 +890,7 @@ function ScoreInput({ value, maxScore, onChange, disabled = false }) {
         type="range"
         min={0}
         max={maxScore}
-        step={1}
+        step={0.01}
         value={sliderValue}
         onChange={(e) => onChange(Number(e.target.value))}
         disabled={disabled}
@@ -847,7 +902,7 @@ function ScoreInput({ value, maxScore, onChange, disabled = false }) {
         type="number"
         min={0}
         max={maxScore}
-        step={1}
+        step={0.01}
         value={hasValue ? sliderValue : ''}
         onChange={handleText}
         disabled={disabled}

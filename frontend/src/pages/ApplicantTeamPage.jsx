@@ -6,6 +6,11 @@ import TeamMemberList from '../components/TeamMemberList';
 import { formatPhone, formatPhoneInput, isValidPhone, toDigits } from '../utils/phone';
 import { queryKeys } from '../query/keys';
 import { useLiveApiQuery } from '../query/useApiQuery';
+import { useApplicationEditorPeriod } from '../query/useApplicationEditorPeriod';
+import { formatProgramPeriod } from '../utils/programSchedule';
+import { isApplicationPeriodError, isApplicationDeadlineError } from '../utils/applicationPeriod';
+import { useApplicationDeadlineExit } from '../query/useApplicationDeadlineExit';
+import ApplicationDeadlineDialog from '../components/ApplicationDeadlineDialog';
 
 const INPUT_CLASS =
   'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow';
@@ -13,11 +18,13 @@ const MEMBER_INPUT_CLASS =
   'flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-shadow';
 
 // 하나의 제출 지원서에 대한 팀/본인 정보 카드. 보기 ↔ 편집 모드를 자체 관리한다.
-function TeamInfoCard({ app, onSaved }) {
+function TeamInfoCard({ app, onSaved, receivedAt }) {
+  const { exitForDeadline, deadlineNotice, confirmDeadlineExit } = useApplicationDeadlineExit();
   const isTeam = app.participantType === 'TEAM';
   const info = app.applicantInfo || {};
-  const deadlinePassed = !!app.applicationDeadline
-    && new Date().toISOString().slice(0, 10) > app.applicationDeadline;
+  const { period, checkPeriod } = useApplicationEditorPeriod(app, queryKeys.myApplications, receivedAt,
+    (apps) => apps?.find((item) => item.applicationId === app.applicationId));
+  const writeBlocked = !period.applicationOpen;
 
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +41,10 @@ function TeamInfoCard({ app, onSaved }) {
 
   // 편집 시작: 현재 저장된 값으로 폼을 채운다.
   const startEdit = () => {
+    const current = checkPeriod();
+    if (current.afterDeadline) { exitForDeadline('수정'); return; }
+    const blocked = current.blockedMessage;
+    if (blocked) { setError(blocked); return; }
     setTeamName(app.teamName || '');
     setPName(info.name || '');
     setPEmail(info.email || '');
@@ -66,6 +77,11 @@ function TeamInfoCard({ app, onSaved }) {
   };
 
   const handleSave = async () => {
+    if (saving) return;
+    const current = checkPeriod();
+    if (current.afterDeadline) { exitForDeadline('수정'); return; }
+    const blocked = current.blockedMessage;
+    if (blocked) { setError(blocked); return; }
     setError('');
     const phoneError = findPhoneError();
     if (phoneError) {
@@ -88,7 +104,9 @@ function TeamInfoCard({ app, onSaved }) {
       setEditing(false);
       await onSaved();
     } catch (err) {
-      setError(err.response?.data?.message || '저장에 실패했습니다.');
+      if (isApplicationDeadlineError(err)) { exitForDeadline('수정'); return; }
+      setError(err.response?.data?.message || '저장에 실패했습니다. 입력한 내용은 유지됩니다.');
+      void onSaved().then(() => { if (isApplicationPeriodError(err)) checkPeriod(); });
     } finally {
       // pending state is managed by the mutation.
     }
@@ -96,6 +114,7 @@ function TeamInfoCard({ app, onSaved }) {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <ApplicationDeadlineDialog message={deadlineNotice} onConfirm={confirmDeadlineExit} />
       {/* 헤더: 어떤 프로그램인지 + 지원 유형 */}
       <div className="flex items-start justify-between gap-3 pb-4 border-b border-gray-100">
         <div className="flex items-start gap-3 min-w-0">
@@ -113,14 +132,14 @@ function TeamInfoCard({ app, onSaved }) {
           <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
             {isTeam ? '팀 지원' : '개인 지원'}
           </span>
-          {deadlinePassed && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-500">마감</span>
+          {writeBlocked && !deadlineNotice && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-500">{period.label}</span>
           )}
           {!editing && (
             <button
               onClick={startEdit}
-              disabled={deadlinePassed}
-              title={deadlinePassed ? '지원 마감으로 더 이상 수정할 수 없습니다.' : undefined}
+              disabled={writeBlocked}
+              title={period.blockedMessage || undefined}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:bg-white"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -131,6 +150,10 @@ function TeamInfoCard({ app, onSaved }) {
           )}
         </div>
       </div>
+
+      <p className="text-xs text-gray-500 mt-3" aria-live="polite">지원 기간 {formatProgramPeriod(app, 'application')} · {period.label}</p>
+      {writeBlocked && !deadlineNotice && <p className="text-sm text-amber-700 mt-2">{period.blockedMessage}{editing && ' 입력한 내용은 화면에 유지됩니다.'}</p>}
+      {!deadlineNotice && !editing && error && <p role="alert" className="text-sm text-red-500 mt-2">{error}</p>}
 
       {/* 본문: 보기 모드 */}
       {!editing ? (
@@ -164,6 +187,7 @@ function TeamInfoCard({ app, onSaved }) {
       ) : (
         /* 본문: 편집 모드 */
         <div className="pt-4 space-y-4">
+          <fieldset disabled={writeBlocked || saving} className="space-y-4 disabled:opacity-70">
           {isTeam ? (
             <>
               <div>
@@ -217,7 +241,8 @@ function TeamInfoCard({ app, onSaved }) {
             </div>
           )}
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          </fieldset>
+          {!deadlineNotice && error && <p role="alert" className="text-sm text-red-500">{error}</p>}
 
           <div className="flex items-center justify-end gap-2 pt-1">
             <button
@@ -229,7 +254,7 @@ function TeamInfoCard({ app, onSaved }) {
             </button>
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || writeBlocked}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-60"
             >
               {saving ? '저장 중...' : '저장'}
@@ -280,7 +305,7 @@ export default function ApplicantTeamPage() {
       ) : (
         <div className="space-y-4">
           {apps.map((app) => (
-            <TeamInfoCard key={app.applicationId} app={app} onSaved={applicationsQuery.refetch} />
+            <TeamInfoCard key={app.applicationId} app={app} onSaved={applicationsQuery.refetch} receivedAt={applicationsQuery.dataUpdatedAt} />
           ))}
         </div>
       )}

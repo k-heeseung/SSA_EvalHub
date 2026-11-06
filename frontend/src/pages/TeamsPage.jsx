@@ -103,10 +103,6 @@ export default function TeamsPage() {
         title="팀 관리"
         subtitle="전체 프로그램의 팀을 조회하고 관리합니다."
       >
-        <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
-          <span className="font-semibold text-gray-800">{totalTeams}</span>
-          <span>팀 전체</span>
-        </div>
       </PageHeader>
 
       {/* 검색 + 필터 */}

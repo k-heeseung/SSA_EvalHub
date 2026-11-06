@@ -26,6 +26,7 @@ const STATUS_BADGE = {
   ACTIVE:     { label: '평가 진행',  cls: 'bg-green-100 text-green-700' },
   RECRUITING: { label: '지원 접수',  cls: 'bg-blue-100 text-blue-700' },
   SCHEDULED:  { label: '접수 예정',  cls: 'bg-violet-100 text-violet-700' },
+  PENDING_EVALUATION: { label: '평가 대기', cls: 'bg-sky-100 text-sky-700' },
   INACTIVE:   { label: '집계 완료',  cls: 'bg-gray-100 text-gray-500' },
   DRAFT:      { label: '임시 저장',  cls: 'bg-gray-100 text-gray-400' },
 };

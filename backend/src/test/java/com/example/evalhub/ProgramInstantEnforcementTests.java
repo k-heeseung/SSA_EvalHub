@@ -75,6 +75,7 @@ class ProgramInstantEnforcementTests {
     void evaluationDraftIsBlockedBeforeStartAndAfterDeadline() {
         var request = new SaveEvaluationRequest(null, List.of());
         rejected(() -> evaluations.saveDraft(assignment.getId(), team.getId(), evaluator.getId(), request), "평가 시작");
+        rejected(() -> evaluations.submit(assignment.getId(), team.getId(), evaluator.getId(), request), "평가 시작");
         program.updateSchedule(now.minusSeconds(7200), now.minusSeconds(3600), now.minusSeconds(1800), now.minusSeconds(1));
         rejected(() -> evaluations.saveDraft(assignment.getId(), team.getId(), evaluator.getId(), request), "평가 마감");
         rejected(() -> evaluations.submit(assignment.getId(), team.getId(), evaluator.getId(), request), "평가 마감");

@@ -7,6 +7,7 @@ import {
 import { getTeamAttachments } from '../api/attachments';
 import { FIELD_TYPE_LABEL, normalizeFieldType, isFileType, parseCheckboxValue } from '../utils/formFields';
 import { teamAverage } from '../utils/export';
+import { bonusSummary, validBonusScore } from '../utils/bonus';
 import TeamMemberList from '../components/TeamMemberList';
 import { formatPhone } from '../utils/phone';
 import { queryKeys } from '../query/keys';
@@ -33,8 +34,8 @@ export default function TeamBonusPage() {
 
   const [leftTab, setLeftTab] = useState(0);
   const [pdfIndex, setPdfIndex] = useState(0);
-  const [bonusInput, setBonusInput] = useState('');
-  const [reason, setReason] = useState('');
+  const [bonusInputs, setBonusInputs] = useState({});
+  const [savedBonusInputs, setSavedBonusInputs] = useState({});
   const [message, setMessage] = useState('');
   const hydratedRef = useRef(null);
 
@@ -61,43 +62,48 @@ export default function TeamBonusPage() {
   const result = (resultsQuery.data ?? []).find((r) => r.teamId === Number(teamId));
   const base = result ? teamAverage(result) : null;
 
-  const maxBonus = program?.maxBonus != null ? Number(program.maxBonus) : null;
-
-  // 팀이 바뀌면 저장된 가산점/사유로 폼을 초기화한다. (ref 가드로 조건부 실행)
+  const items = program?.bonusItems ?? [];
+  const dirty = items.some((item) => (bonusInputs[item.id] ?? '') !== (savedBonusInputs[item.id] ?? ''));
   useEffect(() => {
-    if (!currentTeam || hydratedRef.current === teamId) return;
-    hydratedRef.current = teamId;
-    setBonusInput(currentTeam.bonusScore != null ? String(Number(currentTeam.bonusScore)) : '');
-    setReason(currentTeam.bonusReason || '');
+    if (!currentTeam) return;
+    const signature = `${teamId}:${JSON.stringify(currentTeam.bonusScores)}`;
+    if (hydratedRef.current?.signature === signature) return;
+    if (hydratedRef.current?.teamId === teamId && dirty) return;
+    hydratedRef.current = { teamId, signature };
+    const inputs = Object.fromEntries((currentTeam.bonusScores ?? []).map((item) =>
+      [item.itemId, item.score == null ? '' : String(Number(item.score))]));
+    setBonusInputs(inputs);
+    setSavedBonusInputs(inputs);
     setPdfIndex(0);
     setMessage('');
-  }, [currentTeam, teamId]);
-
-  const savedBonus = currentTeam?.bonusScore != null ? String(Number(currentTeam.bonusScore)) : '';
-  const savedReason = currentTeam?.bonusReason || '';
-  const dirty = bonusInput !== savedBonus || reason !== savedReason;
-
-  const bonusNum = bonusInput === '' ? null : Number(bonusInput);
-  const bonusValid = bonusNum == null
-    || (!Number.isNaN(bonusNum) && bonusNum >= 0 && (maxBonus == null || bonusNum <= maxBonus));
-  const total = base != null ? base + (bonusNum || 0) : (bonusNum != null ? bonusNum : null);
+  }, [currentTeam, teamId, dirty]);
+  const values = items.map((item) => ({ itemId: item.id,
+    score: (bonusInputs[item.id] ?? '') === '' ? null : Number(bonusInputs[item.id]) }));
+  const summary = bonusSummary(values);
+  const bonusNum = summary.total;
+  const bonusValid = items.length > 0 && items.every((item) => validBonusScore(bonusInputs[item.id] ?? '', item.maxScore));
+  const total = base != null ? base + (bonusNum ?? 0) : bonusNum;
 
   const saveMutation = useMutation({
     mutationFn: () => updateTeamBonus(programId, teamId, {
-      bonusScore: bonusNum,
-      bonusReason: reason.trim() || null,
+      scores: values,
     }),
   });
   const saving = saveMutation.isPending;
 
   const handleSave = async () => {
     if (!bonusValid) {
-      setMessage(maxBonus != null ? `0 이상 ${maxBonus} 이하로 입력하세요.` : '0 이상의 숫자를 입력하세요.');
+      setMessage('각 항목의 점수를 0 이상, 최대 점수 이하, 소수 둘째 자리까지 입력하세요.');
       return false;
     }
     setMessage('');
     try {
       const res = await saveMutation.mutateAsync();
+      const inputs = Object.fromEntries((res.data.bonusScores ?? []).map((item) =>
+        [item.itemId, item.score == null ? '' : String(Number(item.score))]));
+      setBonusInputs(inputs);
+      setSavedBonusInputs(inputs);
+      hydratedRef.current = { teamId, signature: `${teamId}:${JSON.stringify(res.data.bonusScores)}` };
       queryClient.setQueryData(queryKeys.teams(programId), (cur) =>
         (cur ?? []).map((t) => (t.teamId === Number(teamId) ? res.data : t)));
       queryClient.invalidateQueries({ queryKey: queryKeys.evaluationResults(programId) });
@@ -113,10 +119,10 @@ export default function TeamBonusPage() {
     !dirty || window.confirm('저장하지 않은 변경사항이 있습니다. 저장하지 않고 이동하시겠어요?');
 
   const goToTeam = (team) => {
-    if (!confirmDiscardIfDirty()) return;
+    if (saving || !confirmDiscardIfDirty()) return;
     navigate(`/admin/programs/${programId}/bonus/${team.teamId}`);
   };
-  const goToProgram = () => navigate(`/admin/programs/${programId}`);
+  const goToProgram = () => { if (!saving) navigate(`/admin/programs/${programId}`); };
 
   const saveAndAdvance = async () => {
     const ok = await handleSave();
@@ -257,7 +263,7 @@ export default function TeamBonusPage() {
               <div className="p-6">
                 {answerFields.length > 0 ? (
                   <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-1">지원 양식</h3>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-1">제출 받을 항목</h3>
                     <div className="divide-y divide-gray-100">
                       {answerFields.map((field) => (
                         <div key={field.fieldId} className="py-4">
@@ -276,7 +282,7 @@ export default function TeamBonusPage() {
                   </div>
                 ) : (
                   <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-400">
-                    작성된 지원 양식 답변이 없습니다.
+                    작성된 제출 받을 항목 답변이 없습니다.
                   </div>
                 )}
               </div>
@@ -360,69 +366,26 @@ export default function TeamBonusPage() {
               </div>
             </div>
 
-            {/* 가산점 입력 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                가산점 {maxBonus != null && <span className="text-gray-400 font-normal">· 최대 {maxBonus}점</span>}
-              </label>
-              <div className="inline-flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setBonusInput((v) => String(Math.max(0, (Number(v) || 0) - 1)))}
-                  disabled={(Number(bonusInput) || 0) <= 0}
-                  className="px-3 py-2 text-gray-500 hover:bg-gray-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  −
-                </button>
-                <input
-                  type="number"
-                  min="0"
-                  max={maxBonus ?? undefined}
-                  value={bonusInput}
-                  onChange={(e) => setBonusInput(e.target.value)}
-                  placeholder="0"
-                  className="w-20 text-center py-2 text-sm border-x border-gray-200 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setBonusInput((v) => {
-                    const next = (Number(v) || 0) + 1;
-                    return String(maxBonus != null ? Math.min(maxBonus, next) : next);
-                  })}
-                  className="px-3 py-2 text-gray-500 hover:bg-gray-50 cursor-pointer"
-                >
-                  +
-                </button>
-                {bonusInput !== '' && (
-                  <button
-                    type="button"
-                    onClick={() => setBonusInput('')}
-                    className="px-3 py-2 text-xs text-gray-400 hover:text-gray-600 cursor-pointer border-l border-gray-200"
-                  >
-                    지우기
-                  </button>
-                )}
-              </div>
-              {!bonusValid && (
-                <p className="text-xs text-red-500 mt-1.5">
-                  {maxBonus != null ? `0 이상 ${maxBonus} 이하로 입력하세요.` : '0 이상의 숫자를 입력하세요.'}
-                </p>
-              )}
-            </div>
-
-            {/* 사유 메모 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                사유 <span className="text-gray-400 font-normal">· 선택</span>
-              </label>
-              <textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                rows={4}
-                placeholder="예: 타학과 2명 융합, 성적 우수"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
+            <p className="text-xs text-purple-600">{summary.completed}/{summary.count}개 입력{summary.completed === summary.count ? ' · 입력 완료' : ''}</p>
+            {items.map((item) => {
+              const value = bonusInputs[item.id] ?? '';
+              const valid = validBonusScore(value, item.maxScore);
+              return (
+                <div key={item.id} className="border border-gray-200 rounded-lg p-3">
+                  <label htmlFor={`bonus-${item.id}`} className="block text-sm font-medium text-gray-700 break-words">{item.name}</label>
+                  <p className="text-xs text-gray-400 mt-1 mb-2">{item.maxScore == null ? '상한 없음' : `최대 ${Number(item.maxScore)}점`}</p>
+                  <div className="flex items-center gap-2">
+                    <input id={`bonus-${item.id}`} type="number" min="0" max={item.maxScore ?? 99999999.99} step="0.01"
+                      value={value} placeholder="—" disabled={saving}
+                      onChange={(e) => setBonusInputs((inputs) => ({ ...inputs, [item.id]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                    <button type="button" disabled={saving || value === ''} onClick={() => setBonusInputs((inputs) => ({ ...inputs, [item.id]: '' }))}
+                      className="shrink-0 text-xs text-gray-500 disabled:opacity-40">초기화</button>
+                  </div>
+                  {!valid && <p className="text-xs text-red-600 mt-2">0 이상, 최대 점수 이하로 소수 둘째 자리까지 입력하세요.</p>}
+                </div>
+              );
+            })}
           </div>
 
           {/* 하단 버튼 */}

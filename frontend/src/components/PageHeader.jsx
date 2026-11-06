@@ -6,12 +6,12 @@ import { Fragment } from 'react';
 // breadcrumb: 문자열 또는 { label, onClick } 객체의 배열.
 //   - onClick이 있으면 클릭 가능한 버튼으로, 없으면 텍스트로 렌더링한다.
 //   - 마지막 항목은 현재 위치로 간주해 진하게 표시한다.
-export default function PageHeader({ breadcrumb = [], title, subtitle, children }) {
+export default function PageHeader({ breadcrumb = [], title, subtitle, children, stackOnSmall = false }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-6 bg-white rounded-xl border border-gray-200 px-6 py-5">
+    <div className={`flex ${stackOnSmall ? 'flex-col sm:flex-row' : ''} items-start justify-between gap-4 mb-6 bg-white rounded-xl border border-gray-200 px-6 py-5`}>
       <div className="min-w-0">
         {breadcrumb.length > 0 && (
-          <div className="flex items-center gap-2 text-sm text-gray-400 mb-1">
+          <div className={`flex ${stackOnSmall ? 'flex-wrap' : ''} items-center gap-2 text-sm text-gray-400 mb-1`}>
             {breadcrumb.map((crumb, i) => {
               const item = typeof crumb === 'string' ? { label: crumb } : crumb;
               const isLast = i === breadcrumb.length - 1;

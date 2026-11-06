@@ -53,12 +53,26 @@ public class Team {
     @Column(name = "participant_phone", length = 20)
     private String participantPhone;
 
-    // 매니저가 부여한 가산점과 사유(선택). 프로그램에 가산점이 활성화된 경우에만 사용한다.
+    // 이전 단일 가산점/사유 컬럼은 데이터 이력으로 보존한다. 신규 점수는 bonusScores가 기준이다.
     @Column(name = "bonus_score")
     private BigDecimal bonusScore;
 
     @Column(name = "bonus_reason", columnDefinition = "text")
     private String bonusReason;
+
+    @OneToMany(mappedBy = "team", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<TeamBonusScore> bonusScores = new java.util.ArrayList<>();
+
+    // The item scores are authoritative; the old scalar column remains only for migration history.
+    public BigDecimal getBonusScore() {
+        if (!program.isBonusEnabled()) return null;
+        java.util.Set<Long> itemIds = program.getBonusItems().stream().map(BonusItem::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.List<BigDecimal> values = bonusScores.stream()
+                .filter(s -> itemIds.contains(s.getBonusItem().getId()))
+                .map(TeamBonusScore::getScore).filter(java.util.Objects::nonNull).toList();
+        return values.isEmpty() ? null : values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 
     public Team(Program program, String name, ParticipantType participantType, String description, String displayName, String submissionUrl, String notes) {
         this.program = program;
@@ -82,7 +96,7 @@ public class Team {
         this.status = status;
     }
 
-    // 매니저 단독 가산점과 사유를 갱신한다.
+    // 이전 단일 가산점 데이터용 메서드. 신규 심사는 항목별 bonusScores를 갱신한다.
     public void updateBonus(BigDecimal bonusScore, String bonusReason) {
         this.bonusScore = bonusScore;
         this.bonusReason = bonusReason;

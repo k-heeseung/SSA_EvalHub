@@ -25,11 +25,27 @@ docker-compose up -d
 Swagger UI: http://localhost:8080/swagger-ui.html
 API 문서: http://localhost:8080/v3/api-docs
 
-> **경로에 한글이 있으면 `./gradlew test`가 실패합니다.**
-> Gradle은 테스트 워커의 클래스패스를 인자 파일(`@argfile`)에 UTF-8로 쓰는데, JDK 런처는 이를 시스템 인코딩(한국어 Windows면 MS949)으로 읽습니다.
-> 경로의 한글이 깨져 `ClassNotFoundException: GradleWorkerMain`(또는 테스트 클래스를 못 찾음)으로 끝납니다.
-> 저장소와 `GRADLE_USER_HOME`을 **둘 다** ASCII 경로로 옮기면 해결됩니다. 한쪽만 옮기면 실패 지점만 바뀝니다.
-> (Windows의 "Unicode UTF-8 사용" 베타 옵션을 켜도 됩니다.)
+### Windows 한글 경로와 인코딩
+
+Gradle 8.14.4와 Java 21에서 테스트 워커의 클래스패스를 담은 인자 파일(`@argfile`)이 UTF-8로 쓰이고,
+Windows JDK 런처가 이를 시스템 인코딩(한국어 Windows에서는 MS949)으로 읽으면 한글 경로가 깨집니다.
+증상은 `ClassNotFoundException: worker.org.gradle.process.internal.worker.GradleWorkerMain`입니다.
+
+- `gradle.properties`: `org.gradle.jvmargs=-Dfile.encoding=COMPAT`으로 Gradle이 시스템 기본 인코딩을 사용하게 합니다.
+- `build.gradle`: `tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }`로 메인·테스트 Java 소스는 UTF-8을 유지합니다.
+- 저장소·Gradle 캐시 경로 이동이나 Windows 시스템 인코딩 변경 없이, 추가 JVM 옵션 없이 실행합니다.
+- 사용자 전역 `~/.gradle/gradle.properties`나 명령행의 `org.gradle.jvmargs`가 프로젝트 값을 덮어쓰는 경우 인코딩 설정도 함께 유지하세요.
+
+```powershell
+# backend 디렉토리에서 실행. 통합 테스트에는 PostgreSQL이 필요합니다.
+docker compose up -d
+.\gradlew.bat test
+
+# 평가 점수 저장 관련 테스트만 실행
+.\gradlew.bat test --tests '*EvaluationScoreReplacementTest' --tests '*EvaluationScoreReplacementIntegrationTests'
+```
+
+관련 Gradle 이슈: https://github.com/gradle/gradle/issues/30304
 
 ## 스택
 
@@ -106,7 +122,7 @@ Controller는 얇게(thin) 유지되며 전적으로 service에 위임합니다.
 
 ### 프로그램 상태 자동 전환
 
-`scheduler/ProgramStatusScheduler`가 서버 기동 직후 1회, 이후 매시간 실행되며 날짜에 따라 프로그램 상태를 넘깁니다 (`DRAFT` → `SCHEDULED` → `RECRUITING` → `ACTIVE` → `INACTIVE`).
+`scheduler/ProgramStatusScheduler`가 서버 기동 직후 1회, 이후 실행 완료 30초 후 실행되며 시각에 따라 프로그램 상태를 넘깁니다 (`SCHEDULED` → `RECRUITING` → `PENDING_EVALUATION` → `ACTIVE` → `INACTIVE`). `DRAFT`와 수동 `INACTIVE`는 유지하고, 실제 변경 시 커밋 후 SSE 갱신을 알립니다.
 매니저가 기간을 직접 수정하는 경우는 생성·수정 시점에 즉시 반영되므로, 스케줄러는 시간 경과만 담당합니다.
 
 ### CORS

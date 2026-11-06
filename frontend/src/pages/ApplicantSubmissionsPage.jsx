@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getMyApplications, cancelApplication } from '../api/applications';
-import { formatDday, formatDateTime, formatMonthDay } from '../utils/applicant';
+import { formatDateTime } from '../utils/applicant';
 import { queryKeys } from '../query/keys';
 import { useLiveApiQuery } from '../query/useApiQuery';
+import { useApplicationPeriods } from '../query/useApplicationPeriods';
+import { formatProgramPeriod, formatScheduleTime, scheduleInstant } from '../utils/programSchedule';
 
 const APP_STATUS = {
   DRAFT: { label: '작성 중', dot: 'bg-amber-400', badge: 'bg-amber-50 text-amber-700', action: '이어서 작성' },
@@ -16,16 +18,6 @@ const FILTERS = [
   { key: 'DRAFT', label: '작성 중' },
   { key: 'SUBMITTED', label: '제출 완료' },
 ];
-
-// 마감일까지 남은 일수 (음수면 마감 지남, null이면 마감일 없음)
-function daysUntil(deadline) {
-  if (!deadline) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const end = new Date(deadline);
-  end.setHours(0, 0, 0, 0);
-  return Math.round((end - today) / 86400000);
-}
 
 function StatCard({ label, count, active, onClick }) {
   return (
@@ -48,11 +40,13 @@ export default function ApplicantSubmissionsPage() {
   const [filter, setFilter] = useState('ALL');
   const [cancellingId, setCancellingId] = useState(null);
 
-  const { data: apps = [], isPending: loading, refetch } = useLiveApiQuery(
+  const { data: apps = [], isPending: loading, refetch, dataUpdatedAt } = useLiveApiQuery(
     queryKeys.myApplications,
     () => getMyApplications(),
   );
   const cancelMutation = useMutation({ mutationFn: cancelApplication });
+  const { periodFor, currentPeriodFor } = useApplicationPeriods(queryKeys.myApplications, dataUpdatedAt);
+  const currentPeriod = (app) => currentPeriodFor((apps) => apps?.find((item) => item.applicationId === app.applicationId));
 
   const draftCount = apps.filter((a) => a.status === 'DRAFT').length;
   const submittedCount = apps.filter((a) => a.status === 'SUBMITTED').length;
@@ -60,8 +54,9 @@ export default function ApplicantSubmissionsPage() {
   // 작성 중인데 마감이 3일 이내로 임박한 지원서 (아직 마감 전)
   const urgentDrafts = apps.filter((a) => {
     if (a.status !== 'DRAFT') return false;
-    const d = daysUntil(a.applicationDeadline);
-    return d !== null && d >= 0 && d <= 3;
+    const period = periodFor(a);
+    const d = period.daysUntilDeadline;
+    return period.applicationOpen && d !== null && d >= 0 && d <= 3;
   });
 
   const filtered = filter === 'ALL' ? apps : apps.filter((a) => a.status === filter);
@@ -72,6 +67,8 @@ export default function ApplicantSubmissionsPage() {
       : `/applicant/apply/${app.applicationId}`);
 
   const handleCancel = async (app) => {
+    if (cancellingId !== null) return;
+    if (!currentPeriod(app).canCancel) { setError(currentPeriod(app).cancelMessage); return; }
     const msg = app.status === 'SUBMITTED'
       ? '지원을 취소하면 제출한 지원서와 첨부파일이 삭제됩니다. 계속할까요?'
       : '작성 중인 지원서를 삭제할까요? 되돌릴 수 없습니다.';
@@ -79,10 +76,14 @@ export default function ApplicantSubmissionsPage() {
     setCancellingId(app.applicationId);
     setError('');
     try {
+      const refreshed = await refetch();
+      if (refreshed.isError) { setError('기간을 확인하지 못했습니다. 다시 시도해주세요.'); return; }
+      if (!currentPeriod(app).canCancel) { setError(currentPeriod(app).cancelMessage); return; }
       await cancelMutation.mutateAsync(app.applicationId);
       await refetch();
-    } catch {
-      setError('지원 취소에 실패했습니다.');
+    } catch (err) {
+      setError(err.response?.data?.message || '지원 취소에 실패했습니다.');
+      void refetch();
     } finally {
       setCancellingId(null);
     }
@@ -122,7 +123,7 @@ export default function ApplicantSubmissionsPage() {
                   onClick={() => goToApp(a)}
                   className="underline underline-offset-2 hover:text-amber-900 cursor-pointer"
                 >
-                  {a.programTitle} ({formatDday(a.applicationDeadline)})
+                  {a.programTitle} ({periodFor(a).deadlineLabel})
                 </button>
               ))}
             </div>
@@ -167,14 +168,15 @@ export default function ApplicantSubmissionsPage() {
           {filtered.map((app) => {
             const status = APP_STATUS[app.status] || APP_STATUS.DRAFT;
             const isTeam = app.participantType === 'TEAM';
-            const dday = formatDday(app.applicationDeadline);
-            const closed = dday === '마감';
+            const period = periodFor(app);
+            const dday = period.deadlineLabel;
+            const closed = period.afterDeadline;
             const time = app.status === 'SUBMITTED' ? app.submittedAt : app.updatedAt;
             const timeLabel = app.status === 'SUBMITTED' ? '제출' : '수정';
-            const busy = cancellingId === app.applicationId;
 
             return (
               <div key={app.applicationId} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-sm transition-shadow">
+                <p className="text-xs text-gray-500 mb-3" aria-live="polite">지원 기간 {formatProgramPeriod(app, 'application')} · {period.label}</p>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 flex-shrink-0">
@@ -204,7 +206,7 @@ export default function ApplicantSubmissionsPage() {
                         </span>
                         {dday && (
                           <span className={`font-medium ${closed ? 'text-gray-400' : 'text-amber-600'}`}>
-                            {closed ? `마감 (${formatMonthDay(app.applicationDeadline)})` : `마감 ${dday}`}
+                            {closed ? `마감 (${formatScheduleTime(scheduleInstant(app, 'applicationDeadline'))})` : `마감 ${dday}`}
                           </span>
                         )}
                       </div>
@@ -223,12 +225,13 @@ export default function ApplicantSubmissionsPage() {
                           : 'border border-amber-300 text-amber-600 hover:bg-amber-50'
                       }`}
                     >
-                      {status.action}
+                      {app.status === 'DRAFT' && !period.applicationOpen ? '지원서 보기' : status.action}
                     </button>
                     <button
                       onClick={() => handleCancel(app)}
-                      disabled={busy}
-                      title="지원 취소"
+                      disabled={cancellingId !== null || !period.canCancel}
+                      title={period.cancelMessage || '지원 취소'}
+                      aria-label="지원 취소"
                       className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

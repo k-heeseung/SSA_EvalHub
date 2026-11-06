@@ -53,6 +53,8 @@ public class EvaluationCriterion {
         this.displayOrder = displayOrder;
     }
 
+    public void updateMaxScore(BigDecimal maxScore) { this.maxScore = maxScore; }
+
     public void update(String name, String description, BigDecimal weight, Integer displayOrder) {
         this.name = name;
         this.description = description;

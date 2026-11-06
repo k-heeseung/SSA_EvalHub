@@ -3,7 +3,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getOpenPrograms } from '../api/programs';
 import { getMyApplications, startApplication } from '../api/applications';
-import { formatDday, formatPeriod } from '../utils/applicant';
+import { formatProgramPeriod, scheduleInstant } from '../utils/programSchedule';
+import { useApplicationPeriods } from '../query/useApplicationPeriods';
 import { getSessionUser } from '../api/auth';
 import { queryKeys } from '../query/keys';
 import { useLiveApiQuery } from '../query/useApiQuery';
@@ -21,6 +22,7 @@ export default function ApplicantHomePage() {
   });
   const programsQuery = useLiveApiQuery(queryKeys.openPrograms, () => getOpenPrograms());
   const applicationsQuery = useLiveApiQuery(queryKeys.myApplications, () => getMyApplications());
+  const { periodFor, currentPeriodFor } = useApplicationPeriods(queryKeys.openPrograms, programsQuery.dataUpdatedAt);
   const user = userQuery.data ?? {};
   const userName = user.name || user.email?.split('@')[0] || '지원자';
 
@@ -49,13 +51,13 @@ export default function ApplicantHomePage() {
   // 지원 가능(RECRUITING) 프로그램: 마감 전만 노출. 마감된 지원서는 '내 지원서' 탭에서 확인한다.
   // 이미 지원한(작성 중/지원 완료) 프로그램은 상단에 고정한다. (JS sort는 안정 정렬이라 마감일 순서는 유지된다)
   const visiblePrograms = programs
-    .filter((p) => p.status === 'RECRUITING' && formatDday(p.applicationDeadline) !== '마감')
+    .filter((p) => ['RECRUITING', 'SCHEDULED'].includes(p.status) && periodFor(p).canApply)
     .sort((a, b) => (appByProgram[b.id] ? 1 : 0) - (appByProgram[a.id] ? 1 : 0));
 
   // 접수 예정(SCHEDULED) 프로그램: 아직 지원 불가, 시작일 임박순으로 노출한다.
   const scheduledPrograms = programs
-    .filter((p) => p.status === 'SCHEDULED')
-    .sort((a, b) => new Date(a.applicationStart || 0) - new Date(b.applicationStart || 0));
+    .filter((p) => ['RECRUITING', 'SCHEDULED'].includes(p.status) && periodFor(p).beforeStart)
+    .sort((a, b) => Date.parse(scheduleInstant(a, 'applicationStart')) - Date.parse(scheduleInstant(b, 'applicationStart')));
 
   const goToApp = (app) =>
     navigate(app.status === 'SUBMITTED'
@@ -63,6 +65,9 @@ export default function ApplicantHomePage() {
       : `/applicant/apply/${app.applicationId}`);
 
   const handleStart = async (programId) => {
+    if (startMutation.isPending) return;
+    const period = currentPeriodFor((programs) => programs?.find((item) => item.id === programId));
+    if (!period.canApply) { setActionError(period.blockedMessage || '현재 지원할 수 없는 프로그램입니다.'); return; }
     setActionError('');
     setStartingId(programId);
     try {
@@ -70,6 +75,7 @@ export default function ApplicantHomePage() {
       navigate(`/applicant/apply/${data.applicationId}`);
     } catch (err) {
       setActionError(err.response?.data?.message || '지원서를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      void programsQuery.refetch();
       setStartingId(null);
     }
   };
@@ -155,7 +161,7 @@ export default function ApplicantHomePage() {
             {visiblePrograms.map((program) => {
               const myApp = appByProgram[program.id];
               const status = myApp ? APP_STATUS[myApp.status] : null;
-              const dday = formatDday(program.applicationDeadline);
+              const dday = periodFor(program).deadlineLabel;
               return (
                 <div
                   key={program.id}
@@ -187,11 +193,11 @@ export default function ApplicantHomePage() {
                   <h3 className="font-bold text-gray-900 mb-1">{program.title}</h3>
                   <p className="text-sm text-gray-500 mb-4 line-clamp-1">{program.description || ' '}</p>
 
-                  <div className="flex items-end justify-between pt-3 border-t border-gray-100">
+                  <div className="flex flex-wrap items-end justify-between gap-3 pt-3 border-t border-gray-100">
                     <div>
                       <div className="text-xs text-gray-400">지원 기간</div>
                       <div className="text-sm font-medium text-gray-700">
-                        {formatPeriod(program.applicationStart, program.applicationDeadline)}
+                        {formatProgramPeriod(program, 'application')}
                       </div>
                     </div>
                     {myApp ? (
@@ -208,7 +214,7 @@ export default function ApplicantHomePage() {
                     ) : (
                       <button
                         onClick={() => handleStart(program.id)}
-                        disabled={startingId === program.id}
+                        disabled={startMutation.isPending || !periodFor(program).canApply}
                         className="px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-60"
                       >
                         {startingId === program.id ? '시작 중...' : '지원하기 →'}
@@ -233,7 +239,7 @@ export default function ApplicantHomePage() {
         {scheduledPrograms.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {scheduledPrograms.map((program) => {
-              const startDday = formatDday(program.applicationStart);
+              const startDday = periodFor(program).startLabel;
               return (
                 <div key={program.id} className="bg-white rounded-xl border border-gray-200 p-5">
                   <div className="flex items-start justify-between mb-4">
@@ -252,11 +258,11 @@ export default function ApplicantHomePage() {
                   <h3 className="font-bold text-gray-900 mb-1">{program.title}</h3>
                   <p className="text-sm text-gray-500 mb-4 line-clamp-1">{program.description || ' '}</p>
 
-                  <div className="flex items-end justify-between pt-3 border-t border-gray-100">
+                  <div className="flex flex-wrap items-end justify-between gap-3 pt-3 border-t border-gray-100">
                     <div>
                       <div className="text-xs text-gray-400">지원 기간</div>
                       <div className="text-sm font-medium text-gray-700">
-                        {formatPeriod(program.applicationStart, program.applicationDeadline)}
+                        {formatProgramPeriod(program, 'application')}
                       </div>
                     </div>
                     <button
