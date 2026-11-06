@@ -531,6 +531,9 @@ public class ProgramManagementService {
 
     @Transactional
     public UserResponse createUser(CreateUserRequest request) {
+        if (request.role() == Role.EVALUATOR) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "심사위원은 POST /api/evaluators로 생성해주세요.");
+        }
         if (request.email() == null || request.email().isBlank()
                 || request.password() == null || request.password().isBlank()
                 || request.role() == null) {

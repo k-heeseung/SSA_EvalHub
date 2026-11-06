@@ -31,6 +31,18 @@ server:
     include-message: always
 
 evalhub:
+  mail:
+    # 배포 전에는 발송하지 않는다. 암호화 키만 설정하면 생성 작업을 DB에 대기시킬 수 있다.
+    enabled: ${EVALHUB_MAIL_ENABLED:false}
+    client-id: ${EVALHUB_GMAIL_CLIENT_ID:}
+    client-secret: ${EVALHUB_GMAIL_CLIENT_SECRET:}
+    refresh-token: ${EVALHUB_GMAIL_REFRESH_TOKEN:}
+    sender-email: ${EVALHUB_MAIL_SENDER:}
+    login-url: ${EVALHUB_MAIL_LOGIN_URL:http://localhost:3000/login?role=evaluator}
+    encryption-key: ${EVALHUB_MAIL_ENCRYPTION_KEY:}
+    retention: ${EVALHUB_MAIL_RETENTION:7d}
+    max-attempts: ${EVALHUB_MAIL_MAX_ATTEMPTS:5}
+    poll-interval-ms: ${EVALHUB_MAIL_POLL_INTERVAL_MS:10000}
   bootstrap:
     admin-email: ${EVALHUB_BOOTSTRAP_ADMIN_EMAIL:}
     admin-password: ${EVALHUB_BOOTSTRAP_ADMIN_PASSWORD:}

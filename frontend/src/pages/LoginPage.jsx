@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { login } from '../api/auth';
 import { queryKeys } from '../query/keys';
 
@@ -52,7 +52,11 @@ const ROLES = [
 export default function LoginPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [roleKey, setRoleKey] = useState('manager');
+  const [searchParams] = useSearchParams();
+  const [roleKey, setRoleKey] = useState(() => {
+    const requested = searchParams.get('role');
+    return ROLES.some((role) => role.key === requested) ? requested : 'manager';
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);

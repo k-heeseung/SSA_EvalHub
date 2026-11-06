@@ -13,6 +13,7 @@ export const queryKeys = {
   formFields: (programId) => ['programs', Number(programId), 'form-fields'],
   managers: ['managers'],
   evaluators: ['evaluators'],
+  evaluatorInvitations: ['evaluator-invitations'],
   programEvaluators: (programId) => ['programs', Number(programId), 'evaluators'],
   programAssignments: (programId) => ['programs', Number(programId), 'assignments'],
   evaluatorAssignments: ['evaluation-assignments', 'me'],

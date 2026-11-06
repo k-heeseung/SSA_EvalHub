@@ -219,7 +219,7 @@ public class ProgramManagementController {
         return programManagementService.replaceFormFields(programId, request);
     }
 
-    @Operation(summary = "유저 등록", description = "SUPER_ADMIN, MANAGER, EVALUATOR, MEMBER 중 하나의 role로 유저를 생성합니다.")
+    @Operation(summary = "유저 등록", description = "심사위원은 POST /api/evaluators로 생성합니다. 그 외 기존 계정을 등록합니다.")
     @PostMapping("/users")
     public UserResponse createUser(@RequestBody CreateUserRequest request) {
         return programManagementService.createUser(request);

@@ -37,6 +37,7 @@ public class AuthController {
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final com.example.evalhub.invitation.EvaluatorInvitationService invitations;
     private final boolean secureCookie;
     private final int accessTokenMinutes;
     private final int rememberedTokenDays;
@@ -46,6 +47,7 @@ public class AuthController {
             UserRepository userRepository,
             JwtService jwtService,
             PasswordEncoder passwordEncoder,
+            com.example.evalhub.invitation.EvaluatorInvitationService invitations,
             @Value("${evalhub.security.secure-cookie:false}") boolean secureCookie,
             @Value("${evalhub.security.access-token-minutes:30}") int accessTokenMinutes,
             @Value("${evalhub.security.remembered-token-days:30}") int rememberedTokenDays
@@ -54,6 +56,7 @@ public class AuthController {
         this.userRepository = userRepository;
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
+        this.invitations = invitations;
         this.secureCookie = secureCookie;
         this.accessTokenMinutes = accessTokenMinutes;
         this.rememberedTokenDays = rememberedTokenDays;
@@ -116,6 +119,7 @@ public class AuthController {
 
     // 로그인한 본인이 자신의 비밀번호를 변경한다. 모든 역할(관리자/매니저/심사위원/지원자) 공용.
     @PutMapping("/password")
+    @org.springframework.transaction.annotation.Transactional
     public void changePassword(
             Authentication authentication,
             @RequestBody ChangePasswordRequest request
@@ -123,7 +127,7 @@ public class AuthController {
         if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedUser principal)) {
             throw unauthorized();
         }
-        User user = userRepository.findById(principal.id()).orElseThrow(this::unauthorized);
+        User user = userRepository.findLockedById(principal.id()).orElseThrow(this::unauthorized);
 
         String current = request.currentPassword();
         String next = request.newPassword();
@@ -142,6 +146,7 @@ public class AuthController {
 
         user.changePassword(passwordEncoder.encode(next));
         userRepository.save(user);
+        invitations.passwordChanged(user.getId());
     }
 
     private boolean isRoleCompatible(Role requestedRole, Role actualRole) {

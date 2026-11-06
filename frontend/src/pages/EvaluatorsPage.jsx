@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { getEvaluators, createEvaluator, deleteEvaluator } from '../api/evaluators';
+import { getEvaluators, createEvaluator, deleteEvaluator, getInvitations, retryInvitation } from '../api/evaluators';
 import { getPrograms, createAssignment } from '../api/programs';
 import PageHeader from '../components/PageHeader';
 import { queryKeys } from '../query/keys';
@@ -26,6 +26,14 @@ export default function EvaluatorsPage() {
   const [editMode, setEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const evaluatorsQuery = useLiveApiQuery(queryKeys.evaluators, () => getEvaluators());
+  const invitationsQuery = useLiveApiQuery(queryKeys.evaluatorInvitations, () => getInvitations(), { refetchInterval: 5000 });
+  const invitations = new Map((invitationsQuery.data?.invitations ?? []).map((item) => [item.userId, item]));
+  const [notice, setNotice] = useState('');
+  const retryMutation = useMutation({
+    mutationFn: (id) => retryInvitation(id),
+    onSuccess: () => { setNotice('안내 메일 재시도가 예약되었습니다.'); invitationsQuery.refetch(); },
+    onError: (err) => setNotice(err.response?.data?.message || '재시도를 요청하지 못했습니다.'),
+  });
   const evaluators = evaluatorsQuery.data ?? [];
   const loading = evaluatorsQuery.isPending;
   const deleteMutation = useMutation({
@@ -82,6 +90,10 @@ export default function EvaluatorsPage() {
 
   return (
     <div className="p-8">
+      {notice && <p role="status" className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">{notice}</p>}
+      {invitationsQuery.isError && <p role="alert" className="mb-4 text-sm text-red-600">메일 발송 상태를 불러오지 못했습니다.</p>}
+      {invitationsQuery.data?.creationEnabled === false && <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">메일 설정을 준비 중입니다. 설정이 완료되면 심사위원 계정을 생성할 수 있습니다.</p>}
+      {invitationsQuery.data?.deliveryEnabled === false && <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">메일 발송이 비활성화되어 있습니다. 생성한 계정의 안내 메일은 발송 대기 상태로 보관됩니다.</p>}
       {/* 헤더 */}
       <PageHeader
         breadcrumb={['EvalHub', '심사위원']}
@@ -90,6 +102,7 @@ export default function EvaluatorsPage() {
       >
         <div className="flex items-center gap-2">
           <button
+            disabled={invitationsQuery.data?.creationEnabled === false}
             onClick={() => setShowModal(true)}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
           >
@@ -201,7 +214,7 @@ export default function EvaluatorsPage() {
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">학과</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">배정 팀</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">상태</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">마지막 접속</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">안내 메일</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -260,7 +273,10 @@ export default function EvaluatorsPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-400">—</td>
+                    <td className="px-4 py-4 text-sm">
+                      <InvitationStatus invitation={invitations.get(evaluator.id)}
+                        pending={retryMutation.isPending} onRetry={() => retryMutation.mutate(evaluator.id)} />
+                    </td>
                     <td className="px-4 py-4 text-right">
                       {!editMode && <button className="text-gray-400 hover:text-gray-600 cursor-pointer">···</button>}
                     </td>
@@ -275,7 +291,7 @@ export default function EvaluatorsPage() {
       {showModal && (
         <CreateEvaluatorModal
           onClose={() => setShowModal(false)}
-          onCreated={() => { setShowModal(false); }}
+          onCreated={() => { setShowModal(false); setNotice('심사위원 계정이 생성되었습니다. 안내 메일 발송을 대기 중입니다.'); evaluatorsQuery.refetch(); invitationsQuery.refetch(); }}
         />
       )}
     </div>
@@ -320,36 +336,36 @@ const ClockStatIcon = ({ className }) => (
   </svg>
 );
 
-function generateRandomPassword() {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-}
-
-function CopyIcon() {
-  return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-    </svg>
-  );
+const INVITATION_LABELS = {
+  PENDING: '발송 대기', PROCESSING: '발송 중', RETRY_WAIT: '재시도 대기',
+  SENT: '발송 요청 성공', FAILED: '발송 실패', CANCELLED: '발송 취소', EXPIRED: '발송 기한 만료',
+};
+const INVITATION_ERRORS = {
+  AUTH_REQUIRED: '발신 계정 재연결 필요', PERMISSION_DENIED: '발신 계정 권한 확인 필요',
+  RATE_LIMITED: '발송량 제한', DAILY_LIMIT: '일일 발송량 제한', GMAIL_UNAVAILABLE: '메일 서비스 일시 오류',
+  NETWORK_ERROR: '네트워크 오류', NETWORK_INTERRUPTED: '네트워크 요청 중단',
+  DECRYPTION_FAILED: '메일 설정 확인 필요', ACCOUNT_INACTIVE: '비활성 계정',
+  ATTEMPTS_EXHAUSTED: '재시도 횟수 소진', INVALID_REQUEST: '메일 요청 확인 필요',
+  INVALID_GMAIL_RESPONSE: '메일 서비스 응답 확인 필요', MESSAGE_ENCODING_ERROR: '메일 작성 오류',
+};
+function InvitationStatus({ invitation, pending, onRetry }) {
+  if (!invitation) return <span className="text-gray-400">발송 이력 없음</span>;
+  return <div className="space-y-1">
+    <span className={invitation.status === 'FAILED' ? 'text-red-600' : 'text-gray-600'}>
+      {INVITATION_LABELS[invitation.status] || invitation.status}
+    </span>
+    {invitation.errorCode && <p className="text-xs text-gray-500">{INVITATION_ERRORS[invitation.errorCode] || '발송 오류'}</p>}
+    {invitation.nextAttemptAt && invitation.status === 'RETRY_WAIT' && <p className="text-xs text-gray-400">다음 시도: {new Date(invitation.nextAttemptAt).toLocaleString('ko-KR')}</p>}
+    {invitation.retryAllowed && <button type="button" disabled={pending} onClick={(event) => { event.stopPropagation(); onRetry(); }} className="block text-xs text-blue-600 disabled:opacity-50">메일 재시도</button>}
+  </div>;
 }
 
 function CreateEvaluatorModal({ onClose, onCreated }) {
   const [name, setName] = useState('');
   const [department, setDepartment] = useState('');
   const [email, setEmail] = useState('');
-  const [randomPassword, setRandomPassword] = useState(() => generateRandomPassword());
   const [error, setError] = useState('');
   const [selectedProgramIds, setSelectedProgramIds] = useState([]);
-  const [sendEmail, setSendEmail] = useState(true);
-  const [copiedKey, setCopiedKey] = useState('');
   const emailValid = email.includes('@') && email.length > 4;
   const programsQuery = useLiveApiQuery(queryKeys.programs, () => getPrograms());
   const programs = (programsQuery.data ?? []).filter((program) => program.status !== 'DRAFT');
@@ -357,7 +373,6 @@ function CreateEvaluatorModal({ onClose, onCreated }) {
     mutationFn: async () => {
       const userRes = await createEvaluator({
         email,
-        password: randomPassword,
         name: name.trim() || null,
         department: department.trim() || null,
       });
@@ -375,16 +390,6 @@ function CreateEvaluatorModal({ onClose, onCreated }) {
     setSelectedProgramIds((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
-  };
-
-  const regenerate = () => {
-    setRandomPassword(generateRandomPassword());
-  };
-
-  const copyToClipboard = (text, key) => {
-    navigator.clipboard.writeText(text).catch(() => {});
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(''), 2000);
   };
 
   const handleSubmit = async (e) => {
@@ -464,39 +469,9 @@ function CreateEvaluatorModal({ onClose, onCreated }) {
             </div>
           </div>
 
-          {/* 임시 발급 암호 */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">임시 비밀번호</label>
-              <button
-                type="button"
-                onClick={regenerate}
-                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                재발급
-              </button>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-0 border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                <span className="px-3 py-2.5 text-xs font-medium text-gray-400 bg-gray-100 border-r border-gray-200 flex-shrink-0 w-20 text-center">비밀번호</span>
-                <span className="flex-1 px-3 py-2.5 text-sm font-mono text-gray-700 truncate">{randomPassword}</span>
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(randomPassword, 'random')}
-                  className="px-3 py-2.5 text-gray-400 hover:text-blue-500 transition-colors cursor-pointer flex-shrink-0 border-l border-gray-200"
-                  title="복사"
-                >
-                  {copiedKey === 'random' ? <CheckIcon /> : <CopyIcon />}
-                </button>
-              </div>
-              <p className="text-xs text-gray-400">
-                계정 정보는 이메일로 자동 전송됩니다. 첫 로그인 시 비밀번호 변경이 권장됩니다.
-              </p>
-            </div>
-          </div>
+          <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
+            임시 비밀번호가 자동 생성되어 입력한 이메일로 안내됩니다. 로그인 후 설정 화면에서 변경할 수 있습니다.
+          </p>
 
           {/* 프로그램 배정 */}
           <div>
@@ -534,17 +509,6 @@ function CreateEvaluatorModal({ onClose, onCreated }) {
             )}
           </div>
 
-          {/* 이메일 발송 */}
-          <label className="flex items-center gap-2.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={sendEmail}
-              onChange={(e) => setSendEmail(e.target.checked)}
-              className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
-            />
-            <span className="text-sm text-gray-700">계정 생성 후 즉시 안내 메일 발송</span>
-          </label>
-
           {error && <p className="text-red-500 text-sm">{error}</p>}
 
           <div className="flex gap-3 pt-1">
@@ -560,7 +524,7 @@ function CreateEvaluatorModal({ onClose, onCreated }) {
               disabled={submitting}
               className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
             >
-              {submitting ? '생성 중...' : '생성 및 발송'}
+              {submitting ? '생성 중...' : '계정 생성 및 메일 예약'}
             </button>
           </div>
         </form>
