@@ -7,9 +7,11 @@ import {
   getFormFields, replaceFormFields,
 } from '../api/programs';
 import PageHeader from '../components/PageHeader';
+import './CreateProgramPage.css';
 import { validBonusScore } from '../utils/bonus';
 import { validCriterionMaxScore, totalCriterionMaxScore } from '../utils/criteria';
-import DateTimeInput from '../components/DateTimeInput';
+import ProgramScheduleSection from '../components/ProgramScheduleSection';
+import ProgramApplicationPreview from '../components/ProgramApplicationPreview';
 import { scheduleInput, scheduleInstant, schedulePayload, scheduleErrors as getScheduleErrors, formatScheduleTime } from '../utils/programSchedule';
 import { useScheduleNow } from '../query/useScheduleNow';
 import { FIELD_TYPES, normalizeFieldType, isOptionType } from '../utils/formFields';
@@ -53,10 +55,8 @@ function Toast({ message, type = 'success', onClose }) {
         </svg>
       )}
       {message}
-      <button onClick={onClose} className="ml-2 text-gray-400 hover:text-white cursor-pointer">
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
+      <button type="button" aria-label="알림 닫기" onClick={onClose} className="ui-button ui-button--ghost ml-2 text-gray-500 hover:text-white cursor-pointer">
+        닫기
       </button>
     </div>
   );
@@ -222,7 +222,7 @@ export default function CreateProgramPage() {
         || (item.maxScore === '' && !(original && original.maxScore == null))
         || !validBonusScore(item.maxScore, null);
     }))) {
-      showToast('가산점 항목명과 최대 점수(0 이상, 소수 둘째 자리까지)를 입력해주세요.', 'error');
+      showToast('가산점 항목명과 최대 점수(0 이상, 소수 첫째 자리까지)를 입력해주세요.', 'error');
       return false;
     }
     return true;
@@ -270,6 +270,7 @@ export default function CreateProgramPage() {
   const handleAdvanceOnEnter = useCallback((e) => {
     if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
     const target = e.target;
+    if (target.closest('dialog')) return;
     if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
     if (['checkbox', 'radio', 'file', 'hidden'].includes(target.type)) return;
 
@@ -304,8 +305,8 @@ export default function CreateProgramPage() {
     if (!title.trim()) { showToast('프로그램 명을 입력해주세요.', 'error'); return; }
     if (!validateBonus()) return;
     if (!validateDates()) return;
-    if (hasIncompleteCriterion()) { showToast('평가 항목 이름을 입력해주세요.', 'error'); return; }
-    if (criteriaItems.some((c) => c.name.trim() && !validCriterionMaxScore(c.maxScore))) { showToast('배점은 0보다 크고 999999.99 이하인 소수 둘째 자리까지 입력해주세요.', 'error'); return; }
+    if (hasIncompleteCriterion()) { showToast('평가 기준 이름을 입력해주세요.', 'error'); return; }
+    if (criteriaItems.some((c) => c.name.trim() && !validCriterionMaxScore(c.maxScore))) { showToast('배점은 0보다 크고 999999.9 이하인 소수 첫째 자리까지 입력해주세요.', 'error'); return; }
     setSaving(true);
     setError('');
     try {
@@ -350,8 +351,8 @@ export default function CreateProgramPage() {
     if (!validateBonus()) return;
     if (!validateDates({ required: true })) return;
     if (hasEmptyOptionField()) { showToast('선택지 유형 항목에 선택지를 최소 1개 입력해주세요.', 'error'); return; }
-    if (hasIncompleteCriterion()) { showToast('평가 항목 이름을 입력해주세요.', 'error'); return; }
-    if (criteriaItems.some((c) => c.name.trim() && !validCriterionMaxScore(c.maxScore))) { showToast('배점은 0보다 크고 999999.99 이하인 소수 둘째 자리까지 입력해주세요.', 'error'); return; }
+    if (hasIncompleteCriterion()) { showToast('평가 기준 이름을 입력해주세요.', 'error'); return; }
+    if (criteriaItems.some((c) => c.name.trim() && !validCriterionMaxScore(c.maxScore))) { showToast('배점은 0보다 크고 999999.9 이하인 소수 첫째 자리까지 입력해주세요.', 'error'); return; }
     setSaving(true);
     setError('');
     try {
@@ -374,8 +375,8 @@ export default function CreateProgramPage() {
     if (!validateBonus()) return;
     if (!validateDates({ required: true })) return;
     if (hasEmptyOptionField()) { showToast('선택지 유형 항목에 선택지를 최소 1개 입력해주세요.', 'error'); return; }
-    if (hasIncompleteCriterion()) { showToast('평가 항목 이름을 입력해주세요.', 'error'); return; }
-    if (criteriaItems.some((c) => c.name.trim() && !validCriterionMaxScore(c.maxScore))) { showToast('배점은 0보다 크고 999999.99 이하인 소수 둘째 자리까지 입력해주세요.', 'error'); return; }
+    if (hasIncompleteCriterion()) { showToast('평가 기준 이름을 입력해주세요.', 'error'); return; }
+    if (criteriaItems.some((c) => c.name.trim() && !validCriterionMaxScore(c.maxScore))) { showToast('배점은 0보다 크고 999999.9 이하인 소수 첫째 자리까지 입력해주세요.', 'error'); return; }
     setSubmitting(true);
     setError('');
     try {
@@ -584,7 +585,7 @@ export default function CreateProgramPage() {
   const showDraftsBanner = !isEditMode && drafts.length > 0 && !draftsBannerDismissed && !draftId;
 
   return (
-    <div className="p-8">
+    <div className="ui-page program-editor">
       {/* 토스트 팝업 */}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
@@ -592,7 +593,7 @@ export default function CreateProgramPage() {
       <PageHeader
         stackOnSmall
         breadcrumb={[
-          'EvalHub',
+          '평가ON',
           { label: '프로그램', onClick: () => navigate('/admin/programs') },
           ...(isEditMode
             ? [{ label: title || '프로그램', onClick: () => navigate(`/admin/programs/${programId}`) }]
@@ -602,98 +603,63 @@ export default function CreateProgramPage() {
         title={isEditMode ? '프로그램 수정' : '프로그램 생성'}
         subtitle={
           isEditMode
-            ? '프로그램 기본 정보와 제출 받을 항목·평가 항목을 수정합니다.'
-            : '기본 정보, 제출 받을 항목, 평가 항목을 설정합니다. 제출된 지원서는 PDF로 변환되어 보관됩니다.'
+            ? '프로그램 기본 정보와 제출 받을 항목·평가 기준을 수정합니다.'
+            : '프로그램 정보와 지원서·평가 항목을 설정하세요.'
         }
       >
-        <div className="flex items-center gap-2.5 flex-shrink-0">
-          {isEditMode ? (
-            <>
-              <button
-                onClick={() => navigate(`/admin/programs/${programId}`)}
-                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleEditSave}
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                {saving ? '저장 중...' : '저장'}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={handleDraftSave}
-                disabled={saving}
-                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {saving ? '저장 중...' : '임시 저장'}
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={submitting}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                {submitting ? '개설 중...' : '개설하기'}
-              </button>
-            </>
-          )}
-        </div>
       </PageHeader>
 
       {/* 기존 draft 배너 */}
       {showDraftsBanner && (
-        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <div className="mb-2 bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
               <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-amber-800">임시 저장된 프로그램이 있습니다</p>
                 <div className="mt-2 space-y-1.5">
                   {drafts.map((draft) => (
-                    <div key={draft.id} className="flex items-center gap-3">
-                      <span className="text-sm text-amber-700 font-medium">
+                    <div key={draft.id} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+                      <span className="w-full min-w-0 text-sm text-amber-700 font-medium sm:w-auto">
                         {draft.title || '(제목 없음)'}
                       </span>
                       {scheduleInstant(draft, 'applicationDeadline') && (
-                        <span className="text-xs text-amber-500">마감 {formatScheduleTime(scheduleInstant(draft, 'applicationDeadline'))}</span>
+                        <span className="w-full text-xs text-amber-500 sm:w-auto">마감 {formatScheduleTime(scheduleInstant(draft, 'applicationDeadline'))}</span>
                       )}
+                      <div className="flex flex-none items-center gap-1 whitespace-nowrap">
                       <button
                         onClick={() => { loadDraft(draft); loadCriteria(draft.id); loadFormFields(draft.id); }}
-                        className="text-xs font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
+                        className="ui-button ui-button--ghost px-2 text-xs font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
                       >
                         이어서 작성
                       </button>
                       <button
                         onClick={() => handleDeleteDraft(draft.id)}
-                        className="text-xs font-medium text-red-500 hover:text-red-600 underline underline-offset-2 cursor-pointer"
+                        className="ui-button ui-button--ghost px-2 text-xs font-medium text-red-500 hover:text-red-600 underline underline-offset-2 cursor-pointer"
                       >
                         삭제
                       </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
             <button
+              type="button" aria-label="임시 저장 안내 닫기"
               onClick={() => setDraftsBannerDismissed(true)}
-              className="text-amber-400 hover:text-amber-600 cursor-pointer flex-shrink-0"
+              className="ui-button ui-button--ghost text-amber-400 hover:text-amber-600 cursor-pointer flex-shrink-0"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              닫기
             </button>
           </div>
         </div>
       )}
 
 {error && (
-        <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+        <div className="mb-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
           {error}
         </div>
       )}
@@ -702,138 +668,55 @@ export default function CreateProgramPage() {
       <div
         ref={formContainerRef}
         onKeyDown={handleAdvanceOnEnter}
-        className="flex flex-col lg:flex-row gap-6 items-start"
+        className="program-editor-layout"
       >
 
         {/* 왼쪽: 메인 폼 */}
-        <div className="w-full flex-1 min-w-0 space-y-5">
+        <div className="program-editor-main">
 
-          {/* 기본 정보 */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-800">기본 정보</h2>
+          <section className="program-editor-group" aria-labelledby="program-basics-heading">
+            <h2 id="program-basics-heading" className="program-editor-section-title">기본 정보</h2>
+            <div className="program-editor-surface program-editor-basic-fields">
+              <div className="program-editor-basic-row">
+                <div className="program-editor-field"><label htmlFor="program-title">프로그램 명<span className="program-editor-required">필수</span></label>
+                  <input id="program-title" className="ui-input" value={title} onChange={(e) => { setTitle(e.target.value); setError(''); }} placeholder="예: AI 프로젝트 실증 지원 프로그램" /></div>
+                <div className="program-editor-field"><label htmlFor="program-category">프로그램 분류</label>
+                  <select id="program-category" className="ui-input" value={type} onChange={(e) => setType(e.target.value)}><option value="MODULE_A">프로그램 지원/심사 시스템</option><option value="MODULE_B">팀/프로젝트 평가</option></select>
+                  <p className="program-editor-help">목록에서 프로그램을 구분할 때 사용합니다.</p></div>
+              </div>
+              <div className="program-editor-field"><label htmlFor="program-description">프로그램 설명 <span className="program-editor-optional">선택</span></label><textarea id="program-description" className="ui-input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="프로그램의 목적과 지원 내용을 입력하세요." /></div>
+              <div className="program-editor-field"><label htmlFor="program-eligibility">지원 자격 <span className="program-editor-optional">선택</span></label><input id="program-eligibility" className="ui-input" value={eligibilityCriteria} onChange={(e) => setEligibilityCriteria(e.target.value)} placeholder="예: 성균관대학교 재학생 2~5인 팀" /></div>
             </div>
-            <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  프로그램 명
-                  <span className="ml-1.5 text-xs font-normal text-red-400">필수</span>
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => { setTitle(e.target.value); setError(''); }}
-                  placeholder="ex) AI Challenge 2026"
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
-                />
-              </div>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    지원 시작
-                    <span className="ml-1.5 text-xs font-normal text-red-400">필수</span>
-                  </label>
-                  <DateTimeInput
-                    value={applicationStart}
-                    onChange={(value) => { setApplicationStart(value); setPeriodErrors({}); }}
-                    label="지원 시작"
-                    error={periodErrors.applicationStart}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    지원 마감
-                    <span className="ml-1.5 text-xs font-normal text-red-400">필수</span>
-                  </label>
-                  <DateTimeInput
-                    value={applicationDeadline}
-                    onChange={(value) => { setApplicationDeadline(value); setPeriodErrors({}); }}
-                    label="지원 마감"
-                    error={periodErrors.applicationDeadline}
-                    disabled={applicationDeadlineLocked}
-                  />
-                  {applicationDeadlineLocked && (
-                    <p className="text-xs text-gray-400 mt-1.5">평가가 시작되어 지원 마감 시각은 변경할 수 없습니다.</p>
-                  )}
-                </div>
-              </div>
-              <div>
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      평가 시작
-                      <span className="ml-1.5 text-xs font-normal text-red-400">필수</span>
-                    </label>
-                    <DateTimeInput
-                      value={evaluationStart}
-                      onChange={(value) => { setEvaluationStart(value); setPeriodErrors({}); }}
-                      label="평가 시작"
-                      error={periodErrors.evaluationStart}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      평가 마감
-                      <span className="ml-1.5 text-xs font-normal text-red-400">필수</span>
-                    </label>
-                    <DateTimeInput
-                      value={evaluationDeadline}
-                      onChange={(value) => { setEvaluationDeadline(value); setPeriodErrors({}); }}
-                      label="평가 마감"
-                      error={periodErrors.evaluationDeadline}
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-400 mt-1.5">평가위원이 평가할 수 있는 기간을 설정하세요. 마감 시각부터 저장·제출할 수 없습니다.</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">자격 조건
-                  <span className="ml-1.5 text-xs font-normal text-gray-400">선택</span>
-                </label>
-                <input
-                  type="text"
-                  value={eligibilityCriteria}
-                  onChange={(e) => setEligibilityCriteria(e.target.value)}
-                  placeholder="ex) 성균관대 재학생 · 2~5인 팀"
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-shadow"
-                />
-                <p className="text-xs text-gray-400 mt-1.5">지원 자격으로 유의할 점을 입력하세요.</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  설명
-                  <span className="ml-1.5 text-xs font-normal text-gray-400">선택</span>
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="프로그램에 대한 설명을 입력하세요"
-                  rows={4}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-shadow"
-                />
-              </div>
-            </div>
-          </div>
+          </section>
 
+          <section className="program-editor-group" aria-labelledby="program-application-heading">
+            <div className="program-editor-heading-row"><h2 id="program-application-heading" className="program-editor-section-title">지원서 구성</h2><ProgramApplicationPreview title={title} participantType={participantType} fields={formItems} attachmentsEnabled={attachmentsEnabled} maxAttachments={maxAttachments} /></div>
+            <div className="program-editor-surface">
+              <div className="program-editor-participant">
+                <h3>지원 방식</h3>
+                <div className="program-editor-choices" role="group" aria-label="지원 방식">
+                  {[{ value: 'INDIVIDUAL', label: '개인 지원', description: '이름·연락처·이메일을 받습니다.' }, { value: 'TEAM', label: '팀 지원', description: '팀 이름과 팀원 정보를 함께 받습니다.' }].map((option) => <label key={option.value} className="program-editor-option"><input type="radio" name="participantType" value={option.value} checked={participantType === option.value} onChange={() => setParticipantType(option.value)} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}
+                </div>
+                <p className="program-editor-help">기본 정보: 지원자 이름·연락처·이메일{participantType === 'TEAM' ? ', 팀 이름·팀원 정보' : ''}</p>
+              </div>
           {/* 제출 받을 항목 */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+            <div className="flex flex-wrap gap-3 items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
                 제출 받을 항목
-                <span className="text-xs font-normal text-gray-400">선택</span>
+                <span className="text-xs font-normal text-gray-500">선택</span>
                 {formItems.length > 0 && (
-                  <span className="text-xs font-normal text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                  <span className="text-xs font-normal text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">
                     {formItems.length} 항목
                   </span>
                 )}
-              </h2>
+              </h3>
 
             </div>
 
             {formItems.length === 0 ? (
-              <div className="px-6 py-10 text-center">
-                <p className="text-sm text-gray-400">등록된 제출 항목이 없습니다. 항목 없이도 프로그램을 개설할 수 있습니다.</p>
-                <p className="text-xs text-gray-300 mt-1">아래 버튼으로 항목을 추가하세요.</p>
+              <div className="program-editor-empty">
+                <p className="text-sm text-gray-500">등록된 제출 항목이 없습니다. 항목 없이도 프로그램을 개설할 수 있습니다.</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
@@ -849,28 +732,28 @@ export default function CreateProgramPage() {
                       dragOverIndex === index ? 'bg-blue-50 border-t-2 border-blue-400' : 'hover:bg-gray-50'
                     }`}
                   >
-                    <div className="text-gray-300 cursor-grab flex-shrink-0 group-hover:text-gray-400 transition-colors flex items-center gap-1 pt-1.5">
+                    <div className="text-gray-300 cursor-grab flex-shrink-0 group-hover:text-gray-500 transition-colors flex items-center gap-1 pt-1.5">
                       <DragIcon />
-                      <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0">
+                      <span className="text-xs tabular-nums text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0">
                         Q{index + 1}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="program-editor-question-fields">
                         <input
                           type="text"
-                          value={item.label}
+                          aria-label={`지원 항목 ${index + 1} 이름`} value={item.label}
                           onChange={(e) => updateFormItem(item.id, 'label', e.target.value)}
                           placeholder="질문 (항목 이름)"
-                          className="flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                          className="ui-input flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                         />
                         <select
-                          value={item.type}
+                          aria-label={`지원 항목 ${index + 1} 응답 방식`} value={item.type}
                           onChange={(e) => changeFormItemType(item.id, e.target.value)}
-                          className="px-2.5 py-1.5 border border-gray-200 rounded-md text-xs text-gray-600 focus:ring-2 focus:ring-blue-500 outline-none bg-white cursor-pointer"
+                          className="ui-input px-2.5 py-1.5 border border-gray-200 rounded-md text-xs text-gray-600 focus:ring-2 focus:ring-blue-500 outline-none bg-white cursor-pointer"
                         >
                           {FIELD_TYPES.map((ft) => (
-                            <option key={ft.value} value={ft.value}>{ft.label}</option>
+                            <option key={ft.value} value={ft.value}>{({ SHORT_TEXT: '짧은 글', LONG_TEXT: '긴 글', RADIO: '하나 선택', CHECKBOX: '여러 개 선택' })[ft.value] || ft.label}</option>
                           ))}
                         </select>
                         <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0">
@@ -888,28 +771,27 @@ export default function CreateProgramPage() {
                       {isOptionType(item.type) && (
                         <div className="mt-3 space-y-2">
                           {(item.options || []).map((opt, oi) => (
-                            <div key={oi} className="flex items-center gap-2">
+                            <div key={oi} className="flex flex-wrap items-center gap-2">
                               <OptionMarker type={item.type} />
                               <input
                                 type="text"
                                 value={opt}
                                 onChange={(e) => updateOption(item.id, oi, e.target.value)}
                                 placeholder={`옵션 ${oi + 1}`}
-                                className="flex-1 min-w-0 px-2 py-1 border-b border-gray-200 text-sm focus:border-blue-500 outline-none transition-colors"
+                                className="ui-input flex-1 min-w-0 px-2 py-1 border-b border-gray-200 text-sm focus:border-blue-500 outline-none transition-colors"
                               />
                               <button
+                                type="button" aria-label={`지원 항목 ${index + 1} 선택지 ${oi + 1} 삭제`}
                                 onClick={() => removeOption(item.id, oi)}
-                                className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors cursor-pointer p-0.5 rounded hover:bg-red-50"
+                                className="ui-button ui-button--ghost flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors cursor-pointer p-0.5 rounded hover:bg-red-50"
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
+                                삭제
                               </button>
                             </div>
                           ))}
                           <button
                             onClick={() => addOption(item.id)}
-                            className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors ml-6"
+                            className="ui-button ui-button--ghost flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors ml-6"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -920,22 +802,20 @@ export default function CreateProgramPage() {
                       )}
                     </div>
                     <button
-                      onClick={() => removeFormItem(item.id)}
-                      className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors cursor-pointer p-1 rounded hover:bg-red-50 mt-0.5"
+                      type="button" aria-label={`지원 항목 ${index + 1} 삭제`} onClick={() => removeFormItem(item.id)}
+                      className="ui-button ui-button--ghost flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors cursor-pointer p-1 rounded hover:bg-red-50 mt-0.5"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                      삭제
                     </button>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="px-6 py-3.5 border-t border-gray-100">
+            <div className="program-editor-add-row">
               <button
                 onClick={addFormItem}
-                className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors"
+                className="ui-button ui-button--ghost program-editor-add-button flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -945,204 +825,36 @@ export default function CreateProgramPage() {
             </div>
           </div>
 
-          {/* 첨부파일 */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-                첨부파일
-                <span className="text-xs font-normal text-gray-400">선택</span>
-              </h2>
-              <span className="text-xs text-gray-400">지원자 제출 파일 · PDF</span>
-            </div>
-
-            <div className="p-6">
-              {/* 첨부파일 수령 여부 토글 */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-700">지원자 첨부파일 받기</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    켜면 지원자가 지원서에 파일을 첨부할 수 있습니다.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={attachmentsEnabled}
-                  onClick={() => setAttachmentsEnabled((v) => !v)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors cursor-pointer ${
-                    attachmentsEnabled ? 'bg-blue-600' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                      attachmentsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* 최대 개수 (첨부 허용 시에만 노출) */}
-              {attachmentsEnabled && (
-                <div className="mt-5 pt-5 border-t border-gray-100 flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-700">최대 첨부 개수</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      지원자는 최대 {Number(maxAttachments) || 1}개까지 업로드할 수 있습니다.
-                    </p>
-                  </div>
-                  <div className="inline-flex items-center border border-gray-200 rounded-lg overflow-hidden flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setMaxAttachments((v) => String(Math.max(1, (Number(v) || 1) - 1)))}
-                      disabled={(Number(maxAttachments) || 1) <= 1}
-                      className="px-3 py-1.5 text-gray-500 hover:bg-gray-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      min="1"
-                      value={maxAttachments}
-                      onChange={(e) => setMaxAttachments(e.target.value)}
-                      onBlur={() => setMaxAttachments((v) => String(Math.max(1, Math.floor(Number(v) || 1))))}
-                      className="w-14 text-center py-1.5 text-sm border-x border-gray-200 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setMaxAttachments((v) => String((Number(v) || 1) + 1))}
-                      className="px-3 py-1.5 text-gray-500 hover:bg-gray-50 cursor-pointer"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className="program-editor-attachments">
+            <label className="program-editor-check"><input type="checkbox" checked={attachmentsEnabled} onChange={(e) => setAttachmentsEnabled(e.target.checked)} />PDF 첨부 받기</label>
+            <div className="program-editor-attachment-count"><label htmlFor="program-max-attachments">최대 첨부 개수</label><input id="program-max-attachments" className="ui-input" type="number" min="1" disabled={!attachmentsEnabled} value={maxAttachments} onChange={(e) => setMaxAttachments(e.target.value)} onBlur={() => setMaxAttachments((value) => String(Math.max(1, Math.floor(Number(value) || 1))))} /><span>개</span></div>
           </div>
-
-          {/* 가산점 */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-                가산점
-                <span className="text-xs font-normal text-gray-400">선택</span>
-              </h2>
-              <span className="text-xs text-gray-400">매니저 단독 평가 · 심사 점수에 가산</span>
             </div>
+          </section>
+          <ProgramScheduleSection values={{ applicationStart, applicationDeadline, evaluationStart, evaluationDeadline }} originalProgram={originalProgram} deadlineLocked={applicationDeadlineLocked} errors={periodErrors} onChange={(field, value) => { ({ applicationStart: setApplicationStart, applicationDeadline: setApplicationDeadline, evaluationStart: setEvaluationStart, evaluationDeadline: setEvaluationDeadline })[field](value); setPeriodErrors({}); }} />
 
-            <div className="p-6">
-              {/* 가산점 사용 여부 토글 */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-700">가산점 사용</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    켜면 매니저가 팀별로 가산점을 입력하고, 심사위원 평균에 더해집니다.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={bonusEnabled}
-                  disabled={bonusLocked && bonusEnabled}
-                  onClick={() => setBonusEnabled((v) => !v)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors cursor-pointer ${
-                    bonusEnabled ? 'bg-blue-600' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                      bonusEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'
-                    }`}
-                  />
-                </button>
-              </div>
-
-            </div>
-            {bonusEnabled && (
-              <>
-                {bonusLocked && <p className="px-6 pb-3 text-xs text-amber-700">심사가 시작되어 기존 항목 삭제와 최대 점수 축소, 가산점 사용 해제가 제한됩니다.</p>}
-                {bonusItems.length === 0 ? (
-                  <div className="px-6 py-11 text-center border-t border-gray-100">
-                    <p className="text-sm text-gray-400">아직 추가된 가산점 항목이 없습니다.</p>
-                    <p className="text-xs text-gray-300 mt-1">아래 버튼으로 항목을 추가하세요.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-50 border-t border-gray-100">
-                    {bonusItems.map((item, index) => {
-                      const original = (latestProgram ?? originalProgram)?.bonusItems?.find((old) => old.id === item.id);
-                      const locked = bonusLocked && !!original;
-                      return (
-                        <div key={item.key}
-                          onDragOver={(e) => { if (bonusDragIndex.current !== null) { e.preventDefault(); setBonusDragOverIndex(index); } }}
-                          onDrop={(e) => onBonusDrop(e, index)} onDragEnd={onBonusDragEnd}
-                          className={`px-6 py-4 group transition-colors ${bonusDragOverIndex === index ? 'bg-blue-50 border-t-2 border-blue-400' : ''}`}>
-                          <div className="flex items-center gap-3">
-                            <div draggable onDragStart={(e) => { bonusDragIndex.current = index; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.key); }}
-                              title="드래그하여 순서 변경" aria-label={`가산점 항목 ${index + 1} 순서 변경`}
-                              className="text-gray-300 cursor-grab flex-shrink-0 group-hover:text-gray-400 transition-colors">
-                              <DragIcon />
-                            </div>
-                            <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0">B{index + 1}</span>
-                            <input type="text" aria-label={`가산점 항목명 ${index + 1}`} value={item.name} maxLength={255}
-                              onChange={(e) => updateBonusItem(item.key, 'name', e.target.value)}
-                              placeholder="가산점 항목 이름 (ex. 사전 교육 수료)"
-                              className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                            <label className="flex items-center gap-1.5 flex-shrink-0">
-                              <span className="text-xs text-gray-400">최대 점수</span>
-                              <input type="number" step="0.01" min={locked && original.maxScore != null ? Number(original.maxScore) : 0}
-                                max="99999999.99" aria-label={`가산점 최대 점수 ${index + 1}`} value={item.maxScore}
-                                disabled={locked && original.maxScore == null} placeholder={original?.maxScore == null && item.id ? '상한 없음' : ''}
-                                onChange={(e) => updateBonusItem(item.key, 'maxScore', e.target.value)}
-                                onBlur={() => { if (locked && original.maxScore != null && (item.maxScore === '' || Number(item.maxScore) < Number(original.maxScore))) updateBonusItem(item.key, 'maxScore', String(original.maxScore)); }}
-                                className="w-24 px-2 py-1.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100" />
-                            </label>
-                            <button type="button" disabled={locked} aria-label={`가산점 항목 ${index + 1} 삭제`}
-                              title={locked ? '심사가 시작되어 삭제할 수 없습니다.' : '가산점 항목 삭제'}
-                              onClick={() => setBonusItems((items) => items.filter((v) => v.key !== item.key))}
-                              className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors cursor-pointer p-1 rounded hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-300 disabled:hover:bg-transparent">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                <div className="px-6 py-3.5 border-t border-gray-100">
-                  <button type="button" onClick={addBonusItem}
-                    className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    가산점 항목 추가
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
+          <section className="program-editor-group" aria-labelledby="program-evaluation-heading">
+            <h2 id="program-evaluation-heading" className="program-editor-section-title">평가 설정</h2>
+            <div className="program-editor-surface">
           {criteriaLocked && <p className="text-xs text-gray-500">심사가 시작되어 배점과 항목 구성은 변경할 수 없습니다.</p>}
           {/* 평가 항목 */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-                평가 항목
-                <span className="text-xs font-normal text-gray-400">선택</span>
+            <div className="flex flex-wrap gap-3 items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                평가 기준
+                <span className="text-xs font-normal text-gray-500">선택</span>
                 {criteriaItems.length > 0 && (
-                  <span className="text-xs font-normal text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                  <span className="text-xs font-normal text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">
                     {criteriaItems.length} 항목
                   </span>
                 )}
-              </h2>
-              <span className="text-xs text-gray-400">총 배점 {totalCriterionMaxScore(criteriaItems)}점</span>
+              </h3>
+              <span className="text-xs text-gray-500">총 배점 {totalCriterionMaxScore(criteriaItems)}점</span>
             </div>
 
             {criteriaItems.length === 0 ? (
-              <div className="px-6 py-11 text-center">
-                <p className="text-sm text-gray-400">아직 추가된 평가 항목이 없습니다.</p>
-                <p className="text-xs text-gray-300 mt-1">아래 버튼으로 항목을 추가하세요.</p>
+              <div className="program-editor-empty">
+                <p className="text-sm text-gray-500">아직 추가된 평가 기준이 없습니다.</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
@@ -1160,132 +872,176 @@ export default function CreateProgramPage() {
                       <div
                         draggable={!criteriaLocked}
                         onDragStart={() => onCriterionDragStart(index)}
-                        className="text-gray-300 cursor-grab flex-shrink-0 group-hover:text-gray-400 transition-colors"
+                        className="text-gray-300 cursor-grab flex-shrink-0 group-hover:text-gray-500 transition-colors"
                       >
                         <DragIcon />
                       </div>
-                      <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0">
+                      <span className="text-xs tabular-nums text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0">
                         Q{index + 1}
                       </span>
                       <input
                         type="text"
-                        value={item.name}
+                        aria-label={`평가 기준 ${index + 1} 이름`} value={item.name}
                         onChange={(e) => updateCriterionItem(item.key, 'name', e.target.value)}
-                        placeholder="평가 항목 이름 (ex. 발표 완성도)"
-                        className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        placeholder="평가 기준 이름 (ex. 발표 완성도)"
+                        className="ui-input flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                       />
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-xs text-gray-400">배점</span>
+                        <span className="text-xs text-gray-500">배점</span>
                         <input
                           type="number"
-                          step="0.01"
+                          step="0.1"
                           min="0.01"
-                          max="999999.99"
+                          max="999999.9"
                           disabled={criteriaLocked}
                           value={item.maxScore}
                           onChange={(e) => updateCriterionItem(item.key, 'maxScore', e.target.value)}
                           aria-label={`항목 배점 ${index + 1}`}
-                          className="w-24 px-2 py-1.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100"
+                          className="ui-input w-24 px-2 py-1.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100"
                         />
                       </div>
                       <button
+                        type="button" aria-label={`평가 기준 ${index + 1} 삭제`}
                         disabled={criteriaLocked}
                         onClick={() => removeCriterion(item.key)}
-                        className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors cursor-pointer p-1 rounded hover:bg-red-50"
+                        className="ui-button ui-button--ghost flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors cursor-pointer p-1 rounded hover:bg-red-50"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        삭제
                       </button>
                     </div>
                     <textarea
-                      value={item.description}
+                      aria-label={`평가 기준 ${index + 1} 설명`} value={item.description}
                       onChange={(e) => updateCriterionItem(item.key, 'description', e.target.value)}
                       placeholder="설명 (선택) · 심사위원에게 보여줄 채점 기준·안내를 입력하세요"
                       rows={2}
-                      className="mt-2 ml-16 w-[calc(100%-4rem)] px-2.5 py-1.5 border border-gray-200 rounded-md text-sm text-gray-600 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                      className="ui-input mt-2 ml-16 w-[calc(100%-4rem)] px-2.5 py-1.5 border border-gray-200 rounded-md text-sm text-gray-600 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
                     />
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="px-6 py-3.5 border-t border-gray-100">
+            <div className="program-editor-add-row">
               <button
                 disabled={criteriaLocked} onClick={addCriterion}
-                className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors"
+                className="ui-button ui-button--ghost program-editor-add-button flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                평가 항목 추가
+                평가 기준 추가
               </button>
             </div>
-          </div>          
+          </div>
+          {/* 가산점 */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="flex flex-wrap gap-3 items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                가산점
+                <span className="text-xs font-normal text-gray-500">선택</span>
+              </h3>
+              <span className="text-xs text-gray-500">매니저 단독 평가 · 심사 점수에 가산</span>
+            </div>
+
+            <div className="p-6">
+              <label className="program-editor-check"><input type="checkbox" checked={bonusEnabled} disabled={bonusLocked && bonusEnabled} onChange={(e) => { setBonusEnabled(e.target.checked); if (e.target.checked && bonusItems.length === 0) addBonusItem(); }} />매니저 가산점 사용</label>
+              <p className="program-editor-help program-editor-bonus-help">심사위원 평균 점수에 매니저가 입력한 가산점을 더합니다.</p>
+            </div>
+            {bonusEnabled && (
+              <>
+                {bonusLocked && <p className="px-6 pb-3 text-xs text-amber-700">심사가 시작되어 기존 항목 삭제와 최대 점수 축소, 가산점 사용 해제가 제한됩니다.</p>}
+                {(
+                  <div className="divide-y divide-gray-50 border-t border-gray-100">
+                    {bonusItems.map((item, index) => {
+                      const original = (latestProgram ?? originalProgram)?.bonusItems?.find((old) => old.id === item.id);
+                      const locked = bonusLocked && !!original;
+                      return (
+                        <div key={item.key}
+                          onDragOver={(e) => { if (bonusDragIndex.current !== null) { e.preventDefault(); setBonusDragOverIndex(index); } }}
+                          onDrop={(e) => onBonusDrop(e, index)} onDragEnd={onBonusDragEnd}
+                          className={`px-6 py-4 group transition-colors ${bonusDragOverIndex === index ? 'bg-blue-50 border-t-2 border-blue-400' : ''}`}>
+                          <div className="program-editor-bonus-row">
+                            <div draggable onDragStart={(e) => { bonusDragIndex.current = index; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.key); }}
+                              title="드래그하여 순서 변경" aria-label={`가산점 항목 ${index + 1} 순서 변경`}
+                              className="text-gray-300 cursor-grab flex-shrink-0 group-hover:text-gray-500 transition-colors">
+                              <DragIcon />
+                            </div>
+                            <span className="text-xs tabular-nums text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0">B{index + 1}</span>
+                            <label className="program-editor-bonus-name">가산점 항목
+                            <input type="text" aria-label={`가산점 항목명 ${index + 1}`} value={item.name} maxLength={255}
+                              onChange={(e) => updateBonusItem(item.key, 'name', e.target.value)}
+                              placeholder="가산점 항목 이름 (ex. 사전 교육 수료)"
+                              className="ui-input flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                            </label>
+                            <label className="program-editor-bonus-score">
+                              <span>최대 점수</span>
+                              <input type="number" step="0.1" min={locked && original.maxScore != null ? Number(original.maxScore) : 0}
+                                max="99999999.9" aria-label={`가산점 최대 점수 ${index + 1}`} value={item.maxScore}
+                                disabled={locked && original.maxScore == null} placeholder={original?.maxScore == null && item.id ? '상한 없음' : ''}
+                                onChange={(e) => updateBonusItem(item.key, 'maxScore', e.target.value)}
+                                onBlur={() => { if (locked && original.maxScore != null && (item.maxScore === '' || Number(item.maxScore) < Number(original.maxScore))) updateBonusItem(item.key, 'maxScore', String(original.maxScore)); }}
+                                className="ui-input w-24 px-2 py-1.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100" />
+                            </label>
+                            <button type="button" disabled={locked} aria-label={`가산점 항목 ${index + 1} 삭제`}
+                              title={locked ? '심사가 시작되어 삭제할 수 없습니다.' : '가산점 항목 삭제'}
+                              onClick={() => setBonusItems((items) => items.filter((v) => v.key !== item.key))}
+                              className="ui-button ui-button--ghost flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors cursor-pointer p-1 rounded hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-300 disabled:hover:bg-transparent">
+                              삭제
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="px-6 py-3.5 border-t border-gray-100">
+                  <button type="button" onClick={addBonusItem}
+                    className="ui-button ui-button--ghost flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    가산점 항목 추가
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+            </div>
+          </section>
         </div>
 
-        {/* 오른쪽: 설정 사이드바 */}
-        <div className="w-full lg:w-72 flex-shrink-0 space-y-4">
-
-          {/* 운영 유형 */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-800">운영 유형</h2>
-            </div>
-            <div className="p-5 space-y-4">
-              {[
-                { value: 'MODULE_A', label: '프로그램 지원/심사 시스템' },
-                { value: 'MODULE_B', label: '팀/프로젝트 평가' },
-              ].map((t) => (
-                <label key={t.value} className="flex items-start gap-3 cursor-pointer group">
-                  <input
-                    type="radio"
-                    name="programType"
-                    value={t.value}
-                    checked={type === t.value}
-                    onChange={() => setType(t.value)}
-                    className="mt-0.5 accent-blue-600 flex-shrink-0 cursor-pointer"
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
-                      {t.label}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-0.5 leading-relaxed">{t.description}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* 지원 방식 (팀/개인) */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-800">지원 방식</h2>
-            </div>
-            <div className="p-5 space-y-4">
-              {[
-                { value: 'INDIVIDUAL', label: '개인 지원', description: '지원자가 본인 정보(이름·연락처·이메일)만 입력합니다.' },
-                { value: 'TEAM', label: '팀 지원', description: '지원자가 팀 이름과 팀원 정보(이름·이메일)를 입력합니다.' },
-              ].map((t) => (
-                <label key={t.value} className="flex items-start gap-3 cursor-pointer group">
-                  <input
-                    type="radio"
-                    name="participantType"
-                    value={t.value}
-                    checked={participantType === t.value}
-                    onChange={() => setParticipantType(t.value)}
-                    className="mt-0.5 accent-blue-600 flex-shrink-0 cursor-pointer"
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
-                      {t.label}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-0.5 leading-relaxed">{t.description}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
+        <div className="program-editor-footer" role="group" aria-label={isEditMode ? '프로그램 수정 완료' : '프로그램 생성 완료'}>
+          {isEditMode ? <>
+              <button
+                onClick={() => navigate(`/admin/programs/${programId}`)}
+                className="ui-button ui-button--ghost px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleEditSave}
+                disabled={saving}
+                className="ui-button ui-button--primary px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {saving ? '저장 중...' : '저장'}
+              </button>
+          </> : <>
+              <button
+                onClick={handleDraftSave}
+                disabled={saving}
+                className="ui-button ui-button--ghost px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {saving ? '저장 중...' : '임시 저장'}
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={submitting}
+                className="ui-button ui-button--primary px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {submitting ? '개설 중...' : '개설하기'}
+              </button>
+          </>}
         </div>
       </div>
     </div>

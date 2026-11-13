@@ -452,8 +452,8 @@ public class ProgramManagementService {
             if (!nullable) throw badBonus("최대 점수를 입력하세요.");
             return;
         }
-        if (value.signum() < 0 || value.stripTrailingZeros().scale() > 2 || value.compareTo(new BigDecimal("99999999.99")) > 0) {
-            throw badBonus("점수는 0 이상 99999999.99 이하, 소수 둘째 자리까지 입력하세요.");
+        if (value.signum() < 0 || value.stripTrailingZeros().scale() > 1 || value.compareTo(new BigDecimal("99999999.9")) > 0) {
+            throw badBonus("점수는 0 이상 99999999.9 이하, 소수 첫째 자리까지 입력하세요.");
         }
     }
 
@@ -574,9 +574,9 @@ public class ProgramManagementService {
     }
 
     private void validateCriterionMaxScore(BigDecimal maxScore) {
-        if (maxScore == null || maxScore.signum() <= 0 || maxScore.compareTo(new BigDecimal("999999.99")) > 0
-                || maxScore.stripTrailingZeros().scale() > 2) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "배점은 0보다 크고 999999.99 이하인 소수 둘째 자리까지의 숫자여야 합니다.");
+        if (maxScore == null || maxScore.signum() <= 0 || maxScore.compareTo(new BigDecimal("999999.9")) > 0
+                || maxScore.stripTrailingZeros().scale() > 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "배점은 0보다 크고 999999.9 이하인 소수 첫째 자리까지의 숫자여야 합니다.");
         }
     }
 

@@ -72,7 +72,7 @@ class CriterionMaxScoreIntegrationTests {
         assertThat(evaluator.getEvaluationResults(programId).get(0).evaluations().get(0).submission().totalScore()).isEqualByComparingTo("80");
         assertThat(evaluator.submit(assignmentId,teamId,evaluatorId,scores(cs,"40","0","25")).totalScore()).isEqualByComparingTo("65");
     }
-    @ParameterizedTest @ValueSource(strings={"-1","40.01","1.001"})
+    @ParameterizedTest @ValueSource(strings={"-1","40.01","1.01","1.001"})
     void rejectsInvalidScoresWithoutStartingEvaluation(String value) {
         var c=criterion("40",1);
         assertThatThrownBy(()->evaluator.saveDraft(assignmentId,teamId,evaluatorId,scores(List.of(c),value)))
@@ -99,7 +99,7 @@ class CriterionMaxScoreIntegrationTests {
             assertThat(saved.name()).isEqualTo("renamed"); assertThat(saved.maxScore()).isEqualByComparingTo("40");
         });
     }
-    @ParameterizedTest @ValueSource(strings={"0","-1","0.001","1000000"})
+    @ParameterizedTest @ValueSource(strings={"0","-1","0.01","0.001","1000000"})
     @WithMockUser(roles="MANAGER")
     void apiRejectsInvalidMax(String max) throws Exception {
         mvc.perform(post("/api/programs/{id}/criteria",programId).with(csrf()).contentType("application/json")
@@ -109,13 +109,13 @@ class CriterionMaxScoreIntegrationTests {
     @Test @WithMockUser(roles="MANAGER")
     void apiAcceptsDecimalsAndRejectsMissingMaxAndLockedChanges() throws Exception {
         mvc.perform(post("/api/programs/{id}/criteria",programId).with(csrf()).contentType("application/json")
-            .content("{\"name\":\"decimal\",\"maxScore\":40.25,\"displayOrder\":1}"))
-            .andExpect(status().is2xxSuccessful()).andExpect(jsonPath("$.maxScore").value(40.25));
+            .content("{\"name\":\"decimal\",\"maxScore\":40.2,\"displayOrder\":1}"))
+            .andExpect(status().is2xxSuccessful()).andExpect(jsonPath("$.maxScore").value(40.2));
         mvc.perform(post("/api/programs/{id}/criteria",programId).with(csrf()).contentType("application/json")
             .content("{\"name\":\"missing\",\"displayOrder\":2}"))
             .andExpect(status().isBadRequest());
         var c=manager.findCriteria(programId).get(0);
-        evaluator.saveDraft(assignmentId,teamId,evaluatorId,scores(List.of(c),"40.25"));
+        evaluator.saveDraft(assignmentId,teamId,evaluatorId,scores(List.of(c),"40.2"));
         mvc.perform(delete("/api/programs/{id}/criteria/{cid}",programId,c.id()).with(csrf())).andExpect(status().isConflict());
         mvc.perform(post("/api/programs/{id}/criteria",programId).with(csrf()).contentType("application/json")
             .content("{\"name\":\"locked\",\"maxScore\":20,\"displayOrder\":2}"))

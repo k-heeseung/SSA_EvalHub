@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   getPrograms, getTeam, getTeamApplication, changeTeamStatus, deleteTeam,
   removeTeamMember, addTeamMember, getEvaluationResults, lookupUser, updateTeam,
@@ -16,7 +16,7 @@ import TeamMemberList from '../components/TeamMemberList';
 import { formatPhone, formatPhoneInput, isValidPhone, toDigits } from '../utils/phone';
 import { queryKeys } from '../query/keys';
 import { useLiveApiQuery } from '../query/useApiQuery';
-import { teamAverage, teamBonus, teamFinalScore } from '../utils/export';
+import { calculateResult, RESULT_METHODS } from '../utils/resultScoring';
 
 // 제출된 답변을 읽기 좋은 문자열로 변환 (체크박스는 JSON 배열로 저장됨)
 function displayAnswer(field) {
@@ -27,13 +27,13 @@ function displayAnswer(field) {
 }
 
 const STATUS_MAP = {
-  PENDING: { label: '평가 전', dot: 'bg-amber-400', badge: 'bg-amber-50 text-amber-700' },
+  PENDING: { label: '미정', dot: 'bg-gray-400', badge: 'bg-gray-100 text-gray-600' },
   PASSED:  { label: '합격',   dot: 'bg-green-500', badge: 'bg-green-50 text-green-700' },
   FAILED:  { label: '불합격', dot: 'bg-red-400',   badge: 'bg-red-50 text-red-600' },
 };
 
 const STATUS_OPTIONS = [
-  { value: 'PENDING', label: '평가 전' },
+  { value: 'PENDING', label: '미정' },
   { value: 'PASSED',  label: '합격' },
   { value: 'FAILED',  label: '불합격' },
 ];
@@ -71,7 +71,7 @@ function Avatar({ email, size = 'md', className = '' }) {
 function Info({ label, value }) {
   return (
     <div>
-      <div className="text-xs text-gray-400">{label}</div>
+      <div className="text-xs text-gray-500">{label}</div>
       <div className="text-sm text-gray-800 mt-0.5 break-all">{value || '—'}</div>
     </div>
   );
@@ -80,6 +80,10 @@ function Info({ label, value }) {
 export default function TeamDetailPage() {
   const { programId, teamId } = useParams();
   const navigate = useNavigate();
+  const { state: entryState } = useLocation();
+  const resultMethod = Object.hasOwn(RESULT_METHODS, entryState?.resultMethod) ? entryState.resultMethod : 'ALL';
+  const resultReturn = entryState?.resultReturn;
+  const returnToProgram = () => navigate(resultReturn || `/admin/programs/${programId}?tab=teams`);
   const queryClient = useQueryClient();
   const [showAddMember, setShowAddMember] = useState(false);
   const [showEditTeam, setShowEditTeam] = useState(false);
@@ -190,20 +194,21 @@ export default function TeamDetailPage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-gray-500">로딩 중...</div>;
-  if (!team) return <div className="p-8 text-red-500">팀을 찾을 수 없습니다.</div>;
+  if (loading) return <div className="ui-page text-gray-500">로딩 중...</div>;
+  if (!team) return <div className="ui-page text-red-500">팀을 찾을 수 없습니다.</div>;
 
-  const scoreResult = {
+  const scoreResult = calculateResult({
     evaluations: teamResult?.evaluations ?? [],
     bonusScore: teamResult?.bonusScore ?? team.bonusScore ?? null,
-  };
+    bonusScores: teamResult?.bonusScores ?? team.bonusScores ?? [],
+  }, resultMethod);
   const submittedEvals = scoreResult.evaluations.filter(
     (e) => e.submission?.status === 'SUBMITTED',
   );
-  const averageScore = teamAverage(scoreResult);
-  const bonusScore = teamBonus(scoreResult);
-  const totalScore = teamFinalScore(scoreResult);
-  const hasBonus = program?.bonusEnabled || scoreResult.bonusScore != null;
+  const averageScore = scoreResult.avg;
+  const bonusScore = scoreResult.bonus;
+  const totalScore = scoreResult.final;
+  const hasBonus = program?.bonusEnabled || scoreResult.bonusScore != null || scoreResult.bonusScores.length > 0;
 
   const currentStatus = STATUS_MAP[team.status] || STATUS_MAP.PENDING;
   const selectedStatus = statusDraft ?? team.status;   // 화면에 표시할 선택값(저장 전 포함)
@@ -216,19 +221,19 @@ export default function TeamDetailPage() {
   const appSubmitted = application?.status === 'SUBMITTED';
 
   return (
-    <div className="p-8">
+    <div className="ui-page">
       {/* 브레드크럼 + 액션 버튼 */}
       <PageHeader
         breadcrumb={[
-          'EvalHub',
-          { label: '팀 관리', onClick: () => navigate(`/admin/programs/${programId}`, { state: { defaultTab: 0 } }) },
+          '평가ON',
+          { label: resultReturn ? '평가 결과로 돌아가기' : '팀 관리', onClick: returnToProgram },
           team.name,
         ]}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowEditTeam(true)}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+            className="ui-button ui-button--ghost flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -237,7 +242,7 @@ export default function TeamDetailPage() {
           </button>
           <button
             onClick={handleDeleteTeam}
-            className="flex items-center gap-1.5 px-3 py-2 border border-red-200 rounded-lg text-sm text-red-500 hover:bg-red-50 cursor-pointer"
+            className="ui-button ui-button--ghost flex items-center gap-1.5 px-3 py-2 border border-red-200 rounded-lg text-sm text-red-500 hover:bg-red-50 cursor-pointer"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -247,34 +252,34 @@ export default function TeamDetailPage() {
         </div>
       </PageHeader>
 
-      <div className="flex gap-6 items-start">
+      <div className="flex flex-col xl:flex-row gap-2 items-stretch xl:items-start">
         {/* 왼쪽 패널 */}
-        <div className="flex-1 min-w-0 space-y-5">
+        <div className="flex-1 min-w-0 space-y-2">
           {/* 팀 정보 카드 */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-start gap-4">
+          <div className="ui-card bg-white rounded-xl border border-gray-200 p-5">
+            <div className="flex flex-col sm:flex-row items-start gap-4">
               <div className="w-14 h-14 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
                 <svg className="w-7 h-7 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="w-full flex-1 min-w-0">
                 {program && (
                   <button
-                    onClick={() => navigate(`/admin/programs/${programId}`, { state: { defaultTab: 0 } })}
-                    className="flex items-center gap-1.5 mb-1.5 text-xs text-gray-500 hover:text-gray-700 cursor-pointer group"
+                    onClick={returnToProgram}
+                    className="ui-button ui-button--ghost flex max-w-full flex-wrap items-center gap-1.5 px-0 mb-1.5 text-left text-xs text-gray-500 hover:text-gray-700 cursor-pointer group"
                   >
                     <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3h14M5 3a2 2 0 00-2 2v3a7 7 0 007 7m-5-10h10m0 0a2 2 0 012 2v3a7 7 0 01-7 7m0 0v3m0 0h-4m4 0h4" />
                     </svg>
-                    <span className="font-medium truncate group-hover:underline">{program.title}</span>
+                    <span className="min-w-0 max-w-full font-medium truncate group-hover:underline">{program.title}</span>
                     <span className="text-gray-300">·</span>
-                    <span className="text-gray-400">{programTypeLabel(program.type)}</span>
+                    <span className="w-full shrink-0 whitespace-nowrap text-gray-500 sm:w-auto">{programTypeLabel(program.type)}</span>
                   </button>
                 )}
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
                   <h1 className="text-xl font-bold text-gray-900">{team.name}</h1>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${currentStatus.badge}`}>
+                  <span className={`shrink-0 whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium ${currentStatus.badge}`}>
                     {currentStatus.label}
                   </span>
                 </div>
@@ -298,8 +303,8 @@ export default function TeamDetailPage() {
           {/* 지원 정보 (지원자가 제출한 본인/팀원 정보 + 양식 답변) */}
           {application ? (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap gap-3 items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-sm font-semibold text-gray-800">지원 정보</h2>
                   <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
                     {isTeamApp ? '팀 지원' : '개인 지원'}
@@ -320,7 +325,7 @@ export default function TeamDetailPage() {
                   />
                 ) : (
                   <div>
-                    <div className="text-xs font-medium text-gray-400 mb-2">지원자</div>
+                    <div className="text-xs font-medium text-gray-500 mb-2">지원자</div>
                     <div className="grid grid-cols-3 gap-3">
                       <Info label="이름" value={appInfo.name} />
                       <Info label="이메일" value={appInfo.email} />
@@ -349,7 +354,7 @@ export default function TeamDetailPage() {
                 {/* 첨부파일 (PDF) — 지원자가 제출한 것 */}
                 {(application.attachmentsEnabled || attachments.length > 0) && (
                   <div className="border-t border-gray-100 pt-4">
-                    <div className="text-xs font-medium text-gray-400 mb-2">첨부파일 (PDF)</div>
+                    <div className="text-xs font-medium text-gray-500 mb-2">첨부파일 (PDF)</div>
                     {attachments.length === 0 ? (
                       <p className="text-sm text-gray-300">첨부된 파일이 없습니다.</p>
                     ) : (
@@ -363,14 +368,14 @@ export default function TeamDetailPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium text-gray-800 truncate">{att.originalFilename}</div>
-                              <div className="text-xs text-gray-400 mt-0.5">{formatBytes(att.fileSize)} · {formatDate(att.uploadedAt)}</div>
+                              <div className="text-xs text-gray-500 mt-0.5">{formatBytes(att.fileSize)} · {formatDate(att.uploadedAt)}</div>
                             </div>
                             <a
                               href={att.contentUrl}
                               target="_blank"
                               rel="noreferrer"
                               title="열기"
-                              className="text-gray-400 hover:text-blue-500 transition-colors cursor-pointer flex-shrink-0"
+                              className="text-gray-500 hover:text-blue-500 transition-colors cursor-pointer flex-shrink-0"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -379,7 +384,7 @@ export default function TeamDetailPage() {
                             <button
                               onClick={() => handleDeleteAttachment(att.id)}
                               title="삭제"
-                              className="text-gray-300 hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
+                              className="ui-button ui-button--ghost text-gray-300 hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -394,7 +399,7 @@ export default function TeamDetailPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 px-5 py-8 text-center text-sm text-gray-400">
+            <div className="bg-white rounded-xl border border-gray-200 px-5 py-8 text-center text-sm text-gray-500">
               지원자가 제출한 지원 정보가 없습니다. (매니저가 직접 등록한 팀)
             </div>
           )}
@@ -402,8 +407,8 @@ export default function TeamDetailPage() {
           {/* 팀원(계정) 섹션 — 매니저가 직접 만든 팀에서만 노출. 지원자가 제출한 팀은 위 '지원 정보'에 팀원 명단이 있다. */}
           {!application && (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap gap-3 items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-sm font-semibold text-gray-800">팀원</h2>
                 <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
                   {team.members?.length ?? 0}명
@@ -411,7 +416,7 @@ export default function TeamDetailPage() {
               </div>
               <button
                 onClick={() => setShowAddMember(true)}
-                className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                className="ui-button ui-button--ghost flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -421,14 +426,14 @@ export default function TeamDetailPage() {
             </div>
 
             {(!team.members || team.members.length === 0) ? (
-              <div className="text-center py-10 text-gray-400 text-sm">등록된 팀원이 없습니다.</div>
+              <div className="text-center py-10 text-gray-500 text-sm">등록된 팀원이 없습니다.</div>
             ) : (
               <div className="divide-y divide-gray-50">
                 {team.members.map((member, idx) => (
                   <div key={member.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors">
                     <Avatar email={member.email} size="sm" />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium text-gray-800 truncate">{member.email}</span>
                         {idx === 0 && (
                           <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
@@ -439,7 +444,7 @@ export default function TeamDetailPage() {
                     </div>
                     <button
                       onClick={() => handleRemoveMember(member.id)}
-                      className="text-gray-300 hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
+                      className="ui-button ui-button--ghost text-gray-300 hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
                       title="팀원 삭제"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -456,8 +461,8 @@ export default function TeamDetailPage() {
           {/* 제출 파일 섹션 — 매니저가 직접 만든 팀에서만. 지원자 팀의 첨부파일은 위 '지원 정보' 카드에 있다. */}
           {!application && (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap gap-3 items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-sm font-semibold text-gray-800">제출 파일</h2>
                 {attachments.length > 0 ? (
                   <span className="flex items-center gap-1 text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">
@@ -465,7 +470,7 @@ export default function TeamDetailPage() {
                     제출 완료
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full font-medium">
+                  <span className="flex items-center gap-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
                     미제출
                   </span>
                 )}
@@ -473,7 +478,7 @@ export default function TeamDetailPage() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading || !canUploadAttachment}
-                className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer disabled:opacity-50"
+                className="ui-button ui-button--ghost flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer disabled:opacity-50"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -493,7 +498,7 @@ export default function TeamDetailPage() {
             {attachments.length === 0 ? (
               <div
                 onClick={() => { if (canUploadAttachment && !uploading) fileInputRef.current?.click(); }}
-                className="text-center py-10 text-gray-400 text-sm cursor-pointer hover:bg-gray-50 transition-colors"
+                className="text-center py-10 text-gray-500 text-sm cursor-pointer hover:bg-gray-50 transition-colors"
               >
                 <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -510,10 +515,10 @@ export default function TeamDetailPage() {
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium text-gray-800 truncate">{att.originalFilename}</span>
                       </div>
-                      <div className="text-xs text-gray-400 mt-0.5">
+                      <div className="text-xs text-gray-500 mt-0.5">
                         {formatBytes(att.fileSize)} · {formatDate(att.uploadedAt)}
                       </div>
                     </div>
@@ -521,7 +526,7 @@ export default function TeamDetailPage() {
                       href={att.contentUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-gray-400 hover:text-blue-500 transition-colors cursor-pointer flex-shrink-0"
+                      className="text-gray-500 hover:text-blue-500 transition-colors cursor-pointer flex-shrink-0"
                       title="다운로드"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -530,7 +535,7 @@ export default function TeamDetailPage() {
                     </a>
                     <button
                       onClick={() => handleDeleteAttachment(att.id)}
-                      className="text-gray-300 hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
+                      className="ui-button ui-button--ghost text-gray-300 hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
                       title="삭제"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -546,11 +551,12 @@ export default function TeamDetailPage() {
         </div>
 
         {/* 오른쪽 패널 */}
-        <div className="w-72 flex-shrink-0 space-y-4">
+        <div className="w-full xl:w-72 flex-shrink-0 space-y-2">
           {/* 평가 상태 */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-gray-800 mb-1">평가 상태</h3>
-            <p className="text-xs text-gray-400 mb-4">지원자에게는 노출되지 않습니다.</p>
+          <div className="ui-card bg-white rounded-xl border border-gray-200 p-5">
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">최종 판정</h3>
+            <p className="text-xs text-gray-500 mb-4">지원자에게는 노출되지 않습니다.</p>
+            {scoreResult.unavailableReason && <p className="text-sm text-amber-800 mb-4">최종 점수 산출 불가: {scoreResult.unavailableReason}. 판정은 저장할 수 있습니다.</p>}
             <div className="space-y-2">
               {STATUS_OPTIONS.map((opt) => (
                 <label
@@ -581,27 +587,28 @@ export default function TeamDetailPage() {
               <button
                 onClick={() => setStatusDraft(null)}
                 disabled={!statusDirty || statusChanging}
-                className="flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white cursor-pointer disabled:cursor-not-allowed"
+                className="ui-button ui-button--ghost flex-1 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white cursor-pointer disabled:cursor-not-allowed"
               >
                 취소
               </button>
               <button
                 onClick={handleStatusSave}
                 disabled={!statusDirty || statusChanging}
-                className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:hover:bg-blue-600 cursor-pointer disabled:cursor-not-allowed"
+                className="ui-button ui-button--primary flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:hover:bg-blue-600 cursor-pointer disabled:cursor-not-allowed"
               >
-                {statusChanging ? '저장 중...' : '완료'}
+                {statusChanging ? '저장 중...' : '판정 저장'}
               </button>
             </div>
           </div>
 
           {/* 평가 요약 */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="ui-card bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-gray-800 mb-4">평가 요약</h3>
+            <p className="text-xs text-gray-600 mb-4">{RESULT_METHODS[resultMethod]} · 심사 {scoreResult.submittedCount} / {scoreResult.assignedCount}명 제출</p>
             {hasBonus ? (
               <div className="grid grid-cols-3 gap-2 mb-4">
                 <div className="rounded-lg border border-gray-200 p-3 text-center">
-                  <p className="text-[11px] text-gray-400 mb-1">심사위원 평균</p>
+                  <p className="text-[11px] text-gray-500 mb-1">심사위원 평균</p>
                   <p className="text-lg font-bold text-gray-700">
                     {averageScore == null ? '—' : averageScore.toFixed(1)}
                   </p>
@@ -609,7 +616,7 @@ export default function TeamDetailPage() {
                 <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-center">
                   <p className="text-[11px] text-purple-500 mb-1">가산점</p>
                   <p className="text-lg font-bold text-purple-700">
-                    {scoreResult.bonusScore != null ? `+${bonusScore}` : '—'}
+                    {scoreResult.bonusScore != null || scoreResult.bonusScores.some(item => item.score != null) ? `+${bonusScore.toFixed(1)}` : '—'}
                   </p>
                 </div>
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-center">
@@ -622,21 +629,21 @@ export default function TeamDetailPage() {
             ) : submittedEvals.length > 0 ? (
               <div className="text-center mb-5">
                 <div className="text-5xl font-bold text-blue-600 leading-none mb-1">
-                  {averageScore.toFixed(1)}
+                  {averageScore == null ? '—' : averageScore.toFixed(1)}
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  심사위원 {submittedEvals.length}명 평균 · 100점 만점
+                <div className="text-xs text-gray-500 mt-1">
+                  {RESULT_METHODS[resultMethod]}
                 </div>
               </div>
             ) : null}
 
             {submittedEvals.length === 0 ? (
-              <div className="text-center py-4 text-gray-400 text-sm">제출된 평가가 없습니다.</div>
+              <div className="text-center py-4 text-gray-500 text-sm">제출된 평가가 없습니다.</div>
             ) : (
               <>
                 {hasBonus && (
-                  <div className="text-center text-xs text-gray-400 mb-4">
-                    심사위원 {submittedEvals.length}명 평균 · 100점 만점
+                  <div className="text-center text-xs text-gray-500 mb-4">
+                    {RESULT_METHODS[resultMethod]}
                   </div>
                 )}
                 <div className="space-y-3">
@@ -645,7 +652,7 @@ export default function TeamDetailPage() {
                     const emailShort = (e.evaluatorEmail || '').split('@')[0];
                     return (
                       <div key={e.evaluatorId}>
-                        <div className="flex items-center justify-between text-xs mb-1">
+                        <div className="flex flex-wrap gap-3 items-center justify-between text-xs mb-1">
                           <span className="text-gray-600 font-medium truncate max-w-[120px]">{emailShort}</span>
                           <span className="text-gray-800 font-semibold">{score}</span>
                         </div>
@@ -806,9 +813,9 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4 py-8" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl overflow-hidden max-h-full flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex flex-wrap gap-3 items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-base font-semibold text-gray-800">지원 정보 수정</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
+          <button onClick={onClose} className="ui-button ui-button--ghost text-gray-500 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
         </div>
 
         <form onSubmit={submit} className="p-6 space-y-5 overflow-y-auto">
@@ -817,21 +824,21 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
             {isTeam && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">팀 이름</label>
-                <input type="text" value={teamName} onChange={(e) => { setTeamName(e.target.value); setError(''); }} className={inputClass} />
+                <input type="text" value={teamName} onChange={(e) => { setTeamName(e.target.value); setError(''); }} className={'ui-input ' + (inputClass)} />
               </div>
             )}
             <div className="grid grid-cols-[1fr_1.6fr_1fr] gap-2">
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">{isTeam ? '팀장 이름' : '이름'}</label>
-                <input type="text" value={participant.name} onChange={setParticipantField('name')} className={inputClass} />
+                <input type="text" value={participant.name} onChange={setParticipantField('name')} className={'ui-input ' + (inputClass)} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">이메일</label>
-                <input type="email" value={participant.email} onChange={setParticipantField('email')} className={inputClass} />
+                <input type="email" value={participant.email} onChange={setParticipantField('email')} className={'ui-input ' + (inputClass)} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">연락처</label>
-                <input type="text" value={participant.phone} onChange={setParticipantField('phone')} className={inputClass} />
+                <input type="text" value={participant.phone} onChange={setParticipantField('phone')} className={'ui-input ' + (inputClass)} />
               </div>
             </div>
           </div>
@@ -839,18 +846,18 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
           {/* 팀원 (팀 지원만) */}
           {isTeam && (
             <div className="border-t border-gray-100 pt-4">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-wrap gap-3 items-center justify-between mb-2">
                 <label className="text-sm font-medium text-gray-700">팀원</label>
-                <button type="button" onClick={addMember} className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer">+ 팀원 추가</button>
+                <button type="button" onClick={addMember} className="ui-button ui-button--ghost text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer">+ 팀원 추가</button>
               </div>
               <div className="space-y-2">
-                {members.length === 0 && <p className="text-xs text-gray-400">추가 팀원이 없습니다.</p>}
+                {members.length === 0 && <p className="text-xs text-gray-500">추가 팀원이 없습니다.</p>}
                 {members.map((m, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input type="text" value={m.name} onChange={(e) => setMember(idx, 'name', e.target.value)} placeholder="이름" className={`${inputClass} flex-1`} />
-                    <input type="email" value={m.email} onChange={(e) => setMember(idx, 'email', e.target.value)} placeholder="이메일" className={`${inputClass} flex-1`} />
-                    <input type="tel" value={m.phone} onChange={(e) => setMember(idx, 'phone', e.target.value)} placeholder="010-0000-0000" className={`${inputClass} flex-1`} />
-                    <button type="button" onClick={() => removeMember(idx)} className="text-gray-300 hover:text-red-400 cursor-pointer p-1 flex-shrink-0" title="삭제">
+                  <div key={idx} className="flex flex-wrap items-center gap-2">
+                    <input type="text" value={m.name} onChange={(e) => setMember(idx, 'name', e.target.value)} placeholder="이름" className={`ui-input ${inputClass} flex-1`} />
+                    <input type="email" value={m.email} onChange={(e) => setMember(idx, 'email', e.target.value)} placeholder="이메일" className={`ui-input ${inputClass} flex-1`} />
+                    <input type="tel" value={m.phone} onChange={(e) => setMember(idx, 'phone', e.target.value)} placeholder="010-0000-0000" className={`ui-input ${inputClass} flex-1`} />
+                    <button type="button" onClick={() => removeMember(idx)} className="ui-button ui-button--ghost text-gray-300 hover:text-red-400 cursor-pointer p-1 flex-shrink-0" title="삭제">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 12H4" /></svg>
                     </button>
                   </div>
@@ -882,16 +889,16 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
           {/* 첨부파일 (PDF) */}
           {attachmentsEnabled && (
             <div className="border-t border-gray-100 pt-4">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-wrap gap-3 items-center justify-between mb-2">
                 <p className="text-sm font-medium text-gray-700">
                   첨부파일 (PDF)
-                  {maxAttachments != null && <span className="text-xs text-gray-400 ml-1">최대 {maxAttachments}개</span>}
+                  {maxAttachments != null && <span className="text-xs text-gray-500 ml-1">최대 {maxAttachments}개</span>}
                 </p>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadMut.isPending || atMax || !application.attachmentsEnabled}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="ui-button ui-button--ghost text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {uploadMut.isPending ? '업로드 중...' : '+ 파일 추가'}
                 </button>
@@ -899,7 +906,7 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
               </div>
               {uploadMessage && <p role="status" className="mb-3 whitespace-pre-line text-sm text-gray-700">{uploadMessage}</p>}
               {attachments.length === 0 ? (
-                <p className="text-xs text-gray-400">첨부된 파일이 없습니다.</p>
+                <p className="text-xs text-gray-500">첨부된 파일이 없습니다.</p>
               ) : (
                 <div className="space-y-2">
                   {attachments.map((att) => (
@@ -911,14 +918,14 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-800 truncate">{att.originalFilename}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">{formatBytes(att.fileSize)} · {formatDate(att.uploadedAt)}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{formatBytes(att.fileSize)} · {formatDate(att.uploadedAt)}</div>
                       </div>
-                      <a href={att.contentUrl} target="_blank" rel="noreferrer" title="열기" className="text-gray-400 hover:text-blue-500 transition-colors cursor-pointer flex-shrink-0">
+                      <a href={att.contentUrl} target="_blank" rel="noreferrer" title="열기" className="text-gray-500 hover:text-blue-500 transition-colors cursor-pointer flex-shrink-0">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                       </a>
-                      <button type="button" onClick={() => handleDeleteAttachment(att.id)} title="삭제" className="text-gray-300 hover:text-red-400 transition-colors cursor-pointer flex-shrink-0">
+                      <button type="button" onClick={() => handleDeleteAttachment(att.id)} title="삭제" className="ui-button ui-button--ghost text-gray-300 hover:text-red-400 transition-colors cursor-pointer flex-shrink-0">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
@@ -934,8 +941,8 @@ function EditApplicationModal({ teamId, application, attachments = [], onAttachm
         </form>
 
         <div className="flex gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0">
-          <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 cursor-pointer">취소</button>
-          <button type="button" onClick={submit} disabled={mutation.isPending} className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
+          <button type="button" onClick={onClose} className="ui-button ui-button--ghost flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 cursor-pointer">취소</button>
+          <button type="button" onClick={submit} disabled={mutation.isPending} className="ui-button ui-button--primary flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
             {mutation.isPending ? '저장 중...' : '저장'}
           </button>
         </div>
@@ -976,32 +983,32 @@ function EditTeamModal({ programId, teamId, team, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl overflow-y-auto max-h-[calc(100dvh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-wrap gap-3 items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-800">팀 정보 수정</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
+          <button onClick={onClose} className="ui-button ui-button--ghost text-gray-500 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
         </div>
         <form onSubmit={submit} className="p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">팀 이름</label>
-            <input type="text" value={form.name} onChange={set('name')} className={inputClass} autoFocus />
+            <input type="text" value={form.name} onChange={set('name')} className={'ui-input ' + (inputClass)} autoFocus />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">설명</label>
-            <textarea value={form.description} onChange={set('description')} rows={2} className={`${inputClass} resize-none`} />
+            <textarea value={form.description} onChange={set('description')} rows={2} className={`ui-input ${inputClass} resize-none`} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">제출 URL</label>
-            <input type="url" value={form.submissionUrl} onChange={set('submissionUrl')} placeholder="https://" className={inputClass} />
+            <input type="url" value={form.submissionUrl} onChange={set('submissionUrl')} placeholder="https://" className={'ui-input ' + (inputClass)} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">비고</label>
-            <textarea value={form.notes} onChange={set('notes')} rows={2} className={`${inputClass} resize-none`} />
+            <textarea value={form.notes} onChange={set('notes')} rows={2} className={`ui-input ${inputClass} resize-none`} />
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <div className="flex gap-3">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 cursor-pointer">취소</button>
-            <button type="submit" disabled={mutation.isPending} className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
+            <button type="button" onClick={onClose} className="ui-button ui-button--ghost flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 cursor-pointer">취소</button>
+            <button type="submit" disabled={mutation.isPending} className="ui-button ui-button--primary flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
               {mutation.isPending ? '저장 중...' : '저장'}
             </button>
           </div>
@@ -1044,7 +1051,7 @@ function AddMemberModal({ teamId, onClose, onAdded }) {
       const lookups = await Promise.all(
         emails.map((email) => lookupUser(email).then(() => null).catch((err) => (
           err.response?.status === 404 ? '존재하지 않는 사용자입니다.' : '확인에 실패했습니다.'
-        ))),      
+        ))),
       );
       // 존재하지 않는 이메일이 있으면 추가하지 않고 해당 입력란 아래에 문구를 표시한다.
       const errorByEmail = new Map(emails.map((email, i) => [email, lookups[i]]).filter(([, msg]) => msg));
@@ -1075,10 +1082,10 @@ function AddMemberModal({ teamId, onClose, onAdded }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-y-auto max-h-[calc(100dvh-2rem)]">
+        <div className="flex flex-wrap gap-3 items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-800">팀원 추가</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
+          <button onClick={onClose} className="ui-button ui-button--ghost text-gray-500 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
@@ -1086,13 +1093,13 @@ function AddMemberModal({ teamId, onClose, onAdded }) {
             <div className="space-y-2">
               {rows.map((row, idx) => (
                 <div key={idx}>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="email"
                       value={row.email}
                       onChange={(e) => patchRow(idx, { email: e.target.value, message: '' })}
                       placeholder="이메일 주소 입력"
-                      className={`flex-1 px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none ${
+                      className={`ui-input flex-1 px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none ${
                         row.message ? 'border-red-300' : 'border-gray-200'
                       }`}
                       autoFocus={idx === 0}
@@ -1101,7 +1108,7 @@ function AddMemberModal({ teamId, onClose, onAdded }) {
                       type="button"
                       onClick={() => removeRow(idx)}
                       disabled={rows.length === 1}
-                      className="text-gray-300 hover:text-red-400 disabled:opacity-30 disabled:hover:text-gray-300 cursor-pointer p-1"
+                      className="ui-button ui-button--ghost text-gray-300 hover:text-red-400 disabled:opacity-30 disabled:hover:text-gray-300 cursor-pointer p-1"
                       title="행 삭제"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1116,7 +1123,7 @@ function AddMemberModal({ teamId, onClose, onAdded }) {
             <button
               type="button"
               onClick={addRow}
-              className="mt-2 flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+              className="ui-button ui-button--ghost mt-2 flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1126,8 +1133,8 @@ function AddMemberModal({ teamId, onClose, onAdded }) {
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <div className="flex gap-3">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 cursor-pointer">취소</button>
-            <button type="submit" disabled={submitting} className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
+            <button type="button" onClick={onClose} className="ui-button ui-button--ghost flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 cursor-pointer">취소</button>
+            <button type="submit" disabled={submitting} className="ui-button ui-button--primary flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
               {submitting ? '추가 중...' : '추가하기'}
             </button>
           </div>

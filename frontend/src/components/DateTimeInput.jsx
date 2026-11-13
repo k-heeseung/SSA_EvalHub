@@ -37,22 +37,22 @@ function TimePart({ value, onChange, max, unit, label, disabled, invalid }) {
   };
 
   return (
-    <div ref={root} className="relative min-w-0" onBlur={(e) => {
+    <div ref={root} className="ui-time-part relative min-w-0" onBlur={(e) => {
       if (!e.currentTarget.contains(e.relatedTarget)) {
         setOpen(false);
         if (/^\d{1,2}$/.test(value) && Number(value) <= max) onChange(value.padStart(2, '0'));
       }
     }}>
-      <div className={`flex items-center rounded-lg border bg-white focus-within:ring-2 focus-within:ring-blue-500 ${invalid ? 'border-red-400' : 'border-gray-200'} ${disabled ? 'bg-gray-50 text-gray-400' : ''}`}>
+      <div className={`ui-time-part-control flex items-center rounded-lg border bg-white focus-within:ring-2 focus-within:ring-blue-500 ${invalid ? 'border-red-400' : 'border-gray-200'} ${disabled ? 'bg-gray-50 text-gray-500' : ''}`}>
         <input ref={input} type="text" role="combobox" inputMode="numeric" maxLength={2}
           aria-label={label} aria-expanded={open && !disabled} aria-controls={`${id}-list`}
           aria-autocomplete="list" aria-activedescendant={open ? `${id}-${active}` : undefined}
           aria-invalid={invalid || undefined} value={value} disabled={disabled} placeholder="--"
           onChange={(e) => { onChange(e.target.value.replace(/\D/g, '').slice(0, 2)); setOpen(false); }}
-          onKeyDown={onKeyDown} className="w-full min-w-0 bg-transparent py-2.5 pl-2 text-center text-sm outline-none disabled:cursor-not-allowed" />
+          onKeyDown={onKeyDown} className="ui-date-control w-full min-w-0 bg-transparent py-2.5 pl-2 text-center outline-none disabled:cursor-not-allowed" />
         <span className="text-sm" aria-hidden="true">{unit}</span>
         <button type="button" disabled={disabled} aria-label={`${label} 선택 목록`} aria-expanded={open && !disabled}
-          onClick={() => open ? setOpen(false) : show()} className="px-2 py-2 text-xs text-gray-400 hover:text-blue-600 disabled:cursor-not-allowed">▾</button>
+          onClick={() => open ? setOpen(false) : show()} className="min-h-11 min-w-11 px-2 py-2 text-xs text-gray-500 hover:text-blue-600 disabled:cursor-not-allowed">▾</button>
       </div>
       {open && !disabled && (
         <ul ref={list} id={`${id}-list`} role="listbox" aria-label={label}
@@ -78,11 +78,11 @@ export default function DateTimeInput({ value = '', onChange, label, disabled = 
   };
   return (
     <div>
-      <div className="grid grid-cols-2 sm:grid-cols-[minmax(0,1fr)_5rem_5rem] gap-2" role="group" aria-label={label} aria-describedby={error ? `${id}-error` : undefined}>
+      <div className="ui-datetime-group grid grid-cols-2 sm:grid-cols-[minmax(0,1fr)_5rem_5rem] gap-2" role="group" aria-label={label} aria-describedby={error ? `${id}-error` : undefined}>
         <div className="relative col-span-2 min-w-0 sm:col-span-1">
           <input ref={picker} type="date" value={date} aria-label={`${label} 날짜`} disabled={disabled}
             aria-invalid={!!error} onInput={(e) => set(e.currentTarget.value, hour, minute)} onChange={(e) => set(e.target.value, hour, minute)}
-            className={`h-full w-full min-w-0 rounded-lg border bg-white px-2 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 ${error ? 'border-red-400' : 'border-gray-200'}`} />
+            className={`ui-input ui-date-control h-full w-full min-w-0 rounded-lg border bg-white px-2 py-2.5 outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 ${error ? 'border-red-400' : 'border-gray-200'}`} />
         </div>
         <TimePart value={hour} onChange={(next) => set(date, next, minute)} max={23} unit="시" label={`${label} 시`} disabled={disabled} invalid={!!error} />
         <TimePart value={minute} onChange={(next) => set(date, hour, next)} max={59} unit="분" label={`${label} 분`} disabled={disabled} invalid={!!error} />

@@ -251,7 +251,7 @@ export default function PdfViewer({ url, filename, className = '' }) {
   return (
     <div className={`flex flex-col bg-gray-100 min-h-0 ${className}`}>
       {/* 툴바 */}
-      <div className="flex-shrink-0 flex items-center gap-1 px-3 py-2 bg-white border-b border-gray-200">
+      <div className="pdf-viewer-toolbar flex-shrink-0 flex flex-wrap items-center gap-1 px-3 py-2 bg-white border-b border-gray-200">
         <ToolbarButton onClick={goPrev} disabled={status !== 'ready' || pageNumber <= 1} title="이전 페이지">
           <ChevronLeftIcon />
         </ToolbarButton>
@@ -268,9 +268,9 @@ export default function PdfViewer({ url, filename, className = '' }) {
             disabled={status !== 'ready'}
             title="페이지 번호로 이동"
             aria-label="페이지 번호"
-            className="w-9 px-1 py-0.5 text-center rounded border border-gray-200 tabular-nums focus:outline-none focus:border-blue-400 disabled:opacity-40"
+            className="min-h-11 w-12 px-1 py-0.5 text-base text-center rounded border border-gray-200 tabular-nums focus:outline-none focus:border-blue-400 disabled:opacity-40"
           />
-          <span className="text-gray-400 select-none">/ {status === 'ready' ? numPages : '—'}</span>
+          <span className="text-gray-500 select-none">/ {status === 'ready' ? numPages : '—'}</span>
         </div>
         <ToolbarButton onClick={goNext} disabled={status !== 'ready' || pageNumber >= numPages} title="다음 페이지">
           <ChevronRightIcon />
@@ -303,7 +303,7 @@ export default function PdfViewer({ url, filename, className = '' }) {
 
         <div className="ml-auto flex items-center gap-2 min-w-0">
           {filename && (
-            <span className="text-xs text-gray-400 truncate max-w-[360px] hidden sm:inline" title={filename}>
+            <span className="text-xs text-gray-500 truncate max-w-[360px] hidden sm:inline" title={filename}>
               {filename}
             </span>
           )}
@@ -312,7 +312,7 @@ export default function PdfViewer({ url, filename, className = '' }) {
             target="_blank"
             rel="noopener noreferrer"
             title="새 탭에서 열기"
-            className="p-1.5 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer"
+            className="min-h-11 min-w-11 inline-flex items-center justify-center p-1.5 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer"
           >
             <ExternalLinkIcon />
           </a>
@@ -374,7 +374,7 @@ function ToolbarButton({ onClick, disabled, title, children }) {
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="p-1.5 rounded text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+      className="min-h-11 min-w-11 inline-flex items-center justify-center p-1.5 rounded text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
     >
       {children}
     </button>
@@ -388,7 +388,7 @@ function FitButton({ onClick, active, disabled, title, children }) {
       disabled={disabled}
       title={title}
       aria-pressed={active}
-      className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+      className={`min-h-11 px-3 py-1 text-sm font-medium whitespace-nowrap transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
         active ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
       }`}
     >
@@ -399,7 +399,7 @@ function FitButton({ onClick, active, disabled, title, children }) {
 
 function CenteredMessage({ children }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-16 text-sm text-gray-400">
+    <div className="flex flex-col items-center justify-center gap-2 py-16 text-sm text-gray-500">
       {children}
     </div>
   );
@@ -428,7 +428,7 @@ function ErrorState({ url }) {
 
 function Spinner() {
   return (
-    <svg className="w-5 h-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+    <svg className="w-5 h-5 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>

@@ -1,4 +1,5 @@
 import { bonusSummary } from './bonus.js';
+import { calculateResult, rankResults, RESULT_METHODS } from './resultScoring.js';
 // 평가 결과 내보내기 유틸 — ExcelJS로 .xlsx 다운로드 지원.
 import ExcelJS from 'exceljs';
 
@@ -11,8 +12,7 @@ const submittedEvals = (team) =>
 export function teamAverage(team) {
   const submitted = submittedEvals(team);
   if (submitted.length === 0) return null;
-  const sum = submitted.reduce((s, e) => s + Number(e.submission.totalScore), 0);
-  return sum / submitted.length;
+  return calculateResult({ evaluations: submitted }, 'ALL').avg;
 }
 
 // 매니저가 부여한 가산점. 없으면 0.
@@ -25,14 +25,12 @@ export function teamBonus(team) {
 export function teamFinalScore(team) {
   const base = teamAverage(team);
   if (base == null && (Array.isArray(team.bonusScores) ? bonusSummary(team.bonusScores).total == null : team.bonusScore == null)) return null;
-  return (base ?? 0) + teamBonus(team);
+  return Math.round(((base ?? 0) + teamBonus(team)) * 10) / 10;
 }
 
 // 최종 점수 내림차순 정렬 + base(avg)/bonus/final 부착. 값이 없는 팀은 뒤로.
-export function rankedTeams(results) {
-  return [...results]
-    .map((t) => ({ ...t, avg: teamAverage(t), bonus: teamBonus(t), final: teamFinalScore(t) }))
-    .sort((a, b) => (b.final ?? -1) - (a.final ?? -1));
+export function rankedTeams(results, method = 'ALL') {
+  return rankResults(results, method);
 }
 
 const sanitize = (name) => (name || 'export').replace(/[\\/:*?"<>|]/g, '_').trim();
@@ -49,6 +47,9 @@ async function downloadSheet(filename, sheetName, aoa) {
     views: [{ state: 'frozen', ySplit: 1 }], // 1행(항목 이름) 고정
   });
   ws.addRows(aoa);
+  ws.eachRow((row, rowNumber) => {
+    if (rowNumber > 1) row.eachCell((cell, column) => { if (column > 1 && typeof cell.value === 'number') cell.numFmt = '0.0'; });
+  });
   ws.getRow(1).font = { bold: true };
   // 열 너비를 내용 길이에 맞춰 자동 조정.
   aoa[0].forEach((_, c) => {
@@ -73,7 +74,7 @@ async function downloadSheet(filename, sheetName, aoa) {
 const evaluatorLabel = (e) => e.evaluatorName || e.evaluatorEmail;
 
 // 전체 팀 · 심사위원별 총점 (Excel). 가산점을 사용하는 프로그램만 가산점/총합 열을 추가한다.
-export function exportAllTeamsExcel(programTitle, results) {
+export function exportAllTeamsExcel(programTitle, results, method = 'ALL') {
   // 동명이인이 있어도 열이 섞이지 않도록 evaluatorId로 열을 구분하고, 표시는 이름으로 한다.
   const evaluators = [];
   const seen = new Set();
@@ -87,43 +88,45 @@ export function exportAllTeamsExcel(programTitle, results) {
   }
   const bonusItems = results.find((t) => t.bonusScores?.length)?.bonusScores ?? [];
   const hasBonus = bonusItems.length > 0 || results.some((t) => t.bonusScore != null);
-  const header = ['순위', '팀명', ...evaluators.map((e) => e.label), '평균', ...bonusItems.map((item) => `가산점: ${item.name}`), ...(hasBonus ? ['가산점 합계', '총합'] : []), '판정'];
-  const rows = rankedTeams(results).map((t, i) => {
+  const header = ['순위', '팀명', ...evaluators.map((e) => e.label), '평균', ...bonusItems.map((item) => `가산점: ${item.name}`), ...(hasBonus ? ['가산점 합계', '총합'] : []), '판정', '산출 방식', '산출 불가 사유', '평균 반영 심사위원'];
+  const rows = rankedTeams(results, method).map((t) => {
     const scoreById = Object.fromEntries(
       submittedEvals(t).map((e) => [e.evaluatorId, e.submission.totalScore]),
     );
     return [
-      i + 1,
+      t.rank ?? '—',
       t.teamName,
       ...evaluators.map((e) => numOrBlank(scoreById[e.id])),
       roundedOrBlank(t.avg),
       ...bonusItems.map((item) => numOrBlank(t.bonusScores?.find((v) => v.itemId === item.itemId)?.score)),
       ...(hasBonus ? [
-        numOrBlank(t.bonusScore),
+        numOrBlank(t.bonus),
         roundedOrBlank(t.final),
       ] : []),
       RESULT_LABEL[t.teamStatus] ?? '',
+      RESULT_METHODS[method], t.unavailableReason ?? '',
+      t.evaluations.filter((_, index) => t.final != null && !t.excludedIndices.includes(index)).map(evaluatorLabel).join(', '),
     ];
   });
-  return downloadSheet(`${sanitize(programTitle)}_전체평가.xlsx`, '전체 평가', [header, ...rows]);
+  return downloadSheet(`${sanitize(programTitle)}_${RESULT_METHODS[method]}_전체평가.xlsx`, '전체 평가', [header, ...rows]);
 }
 
 // 최종 결과 · 합격자만 (Excel)
-export function exportFinalExcel(programTitle, results) {
+export function exportFinalExcel(programTitle, results, method = 'ALL') {
   const bonusItems = results.find((t) => t.bonusScores?.length)?.bonusScores ?? [];
   const hasBonus = bonusItems.length > 0 || results.some((t) => t.bonusScore != null);
-  const ranked = rankedTeams(results).filter((t) => t.teamStatus === 'PASSED');
-  const header = ['순위', '팀명', ...(hasBonus ? ['심사위원 평균', ...bonusItems.map((item) => `가산점: ${item.name}`), '가산점 합계'] : []), '최종 점수', '판정'];
-  const rows = ranked.map((t, i) => [
-    i + 1,
+  const ranked = rankedTeams(results, method).filter((t) => t.teamStatus === 'PASSED');
+  const header = ['순위', '팀명', ...(hasBonus ? ['심사위원 평균', ...bonusItems.map((item) => `가산점: ${item.name}`), '가산점 합계'] : []), '최종 점수', '판정', '산출 방식', '산출 불가 사유'];
+  const rows = ranked.map((t) => [
+    t.rank ?? '—',
     t.teamName,
     ...(hasBonus ? [
       roundedOrBlank(t.avg),
       ...bonusItems.map((item) => numOrBlank(t.bonusScores?.find((v) => v.itemId === item.itemId)?.score)),
-      numOrBlank(t.bonusScore),
+      numOrBlank(t.bonus),
     ] : []),
     roundedOrBlank(t.final),
-    '합격',
+    '합격', RESULT_METHODS[method], t.unavailableReason ?? '',
   ]);
-  return downloadSheet(`${sanitize(programTitle)}_최종합격.xlsx`, '최종 합격', [header, ...rows]);
+  return downloadSheet(`${sanitize(programTitle)}_${RESULT_METHODS[method]}_최종합격.xlsx`, '최종 합격', [header, ...rows]);
 }

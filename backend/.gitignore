@@ -1,47 +1,35 @@
+# Gradle 및 Java 빌드 결과
 HELP.md
-.gradle
+.gradle/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
-
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
 bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
-
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 
-### NetBeans ###
+# Spring Tool Suite / Eclipse
+.apt_generated/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+# NetBeans
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
 
-### VS Code ###
-.vscode/
-
-### 런타임 업로드 파일 ###
-# 지원자가 올린 첨부 PDF. 소스가 아니라 실행 중 생기는 데이터이므로 추적하지 않는다.
+# 실행 중 생성되는 첨부파일
 uploads/
 
-# Dedicated Gmail sender credentials (local setup only)
+# 로컬 Gmail OAuth 인증 파일
 .gmail-oauth.local.json
-.env
-.env.*
-!.env.example

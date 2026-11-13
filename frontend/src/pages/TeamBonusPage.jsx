@@ -9,6 +9,7 @@ import { FIELD_TYPE_LABEL, normalizeFieldType, isFileType, parseCheckboxValue } 
 import { teamAverage } from '../utils/export';
 import { bonusSummary, validBonusScore } from '../utils/bonus';
 import TeamMemberList from '../components/TeamMemberList';
+import BreadcrumbTrail from '../components/BreadcrumbTrail';
 import { formatPhone } from '../utils/phone';
 import { queryKeys } from '../query/keys';
 import { useApiQuery, useLiveApiQuery } from '../query/useApiQuery';
@@ -93,7 +94,7 @@ export default function TeamBonusPage() {
 
   const handleSave = async () => {
     if (!bonusValid) {
-      setMessage('각 항목의 점수를 0 이상, 최대 점수 이하, 소수 둘째 자리까지 입력하세요.');
+      setMessage('각 항목의 점수를 0 이상, 최대 점수 이하, 소수 첫째 자리까지 입력하세요.');
       return false;
     }
     setMessage('');
@@ -136,46 +137,35 @@ export default function TeamBonusPage() {
     return <Navigate to={`/admin/programs/${programId}`} replace />;
   }
   if (teamsQuery.isPending || programsQuery.isPending) {
-    return <div className="h-full flex items-center justify-center text-gray-400">로딩 중...</div>;
+    return <div className="h-full flex items-center justify-center text-gray-500">로딩 중...</div>;
   }
   if (!currentTeam) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3">
         <p className="text-gray-500">팀을 찾을 수 없습니다.</p>
-        <button onClick={goToProgram} className="text-sm text-blue-600 hover:text-blue-700 cursor-pointer">프로그램으로 돌아가기</button>
+        <button onClick={goToProgram} className="ui-button ui-button--ghost text-sm text-blue-600 hover:text-blue-700 cursor-pointer">프로그램으로 돌아가기</button>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="min-h-full lg:h-full flex flex-col min-w-0">
+      <BreadcrumbTrail items={['평가ON', {label:'프로그램',onClick:() => { if (confirmDiscardIfDirty()) goToProgram(); }}, program.title, currentTeam.name, '가산점 입력']} />
       {/* 상단 네비게이션 바 */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 flex items-center h-12 px-4 gap-3">
-        <button
-          onClick={() => { if (confirmDiscardIfDirty()) goToProgram(); }}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors cursor-pointer px-2 py-1 rounded hover:bg-gray-100"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          프로그램
-        </button>
-
-        <div className="w-px h-5 bg-gray-200" />
-
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 flex flex-wrap items-center min-h-14 py-2 px-4 gap-3">
         <div className="flex items-center gap-2 text-sm">
           <span className="font-semibold text-gray-800">#{String(currentIndex + 1).padStart(2, '0')} {currentTeam.name}</span>
           <span className="text-xs text-purple-600 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">가산점 입력</span>
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-3">
           {teams.length > 1 && (
-            <span className="text-sm text-gray-400">{currentIndex + 1} / {teams.length} 팀</span>
+            <span className="text-sm text-gray-500">{currentIndex + 1} / {teams.length} 팀</span>
           )}
           {prevTeam && (
             <button
               onClick={() => goToTeam(prevTeam)}
-              className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+              className="ui-button ui-button--ghost flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -186,7 +176,7 @@ export default function TeamBonusPage() {
           {nextTeam && (
             <button
               onClick={() => goToTeam(nextTeam)}
-              className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+              className="ui-button ui-button--ghost flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
             >
               다음
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -198,15 +188,15 @@ export default function TeamBonusPage() {
       </div>
 
       {/* 본문: 좌우 분할 */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 min-w-0 lg:overflow-hidden">
         {/* 왼쪽 - 자료 뷰어 */}
-        <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200">
-          <div className="flex-shrink-0 bg-white border-b border-gray-200 flex items-center px-4 h-11">
+        <div className="min-h-[28rem] lg:min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gray-200">
+          <div className="ui-tabs flex-shrink-0 bg-white border-b border-gray-200 flex items-center px-4 min-h-11">
             {LEFT_TABS.map((tab, i) => (
               <button
                 key={tab}
                 onClick={() => setLeftTab(i)}
-                className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px h-full ${
+                className={`ui-button ui-button--ghost px-3 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px h-full ${
                   leftTab === i
                     ? 'border-blue-600 text-blue-700'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -234,7 +224,7 @@ export default function TeamBonusPage() {
                             key={att.id}
                             onClick={() => setPdfIndex(i)}
                             title={att.originalFilename}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer border ${
+                            className={`ui-button ui-button--ghost flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer border ${
                               activeFile ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-500 hover:bg-gray-100 border-transparent'
                             }`}
                           >
@@ -246,7 +236,7 @@ export default function TeamBonusPage() {
                         );
                       })}
                     </div>
-                    <Suspense fallback={<div className="flex-1 flex items-center justify-center text-sm text-gray-400">뷰어를 불러오는 중…</div>}>
+                    <Suspense fallback={<div className="flex-1 flex items-center justify-center text-sm text-gray-500">뷰어를 불러오는 중…</div>}>
                       <PdfViewer
                         key={files[activePdfIndex].id}
                         url={files[activePdfIndex].contentUrl}
@@ -262,7 +252,7 @@ export default function TeamBonusPage() {
             {leftTab === 1 && (
               <div className="p-6">
                 {answerFields.length > 0 ? (
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                  <div className="ui-card bg-white rounded-xl border border-gray-200 p-5">
                     <h3 className="text-sm font-semibold text-gray-700 mb-1">제출 받을 항목</h3>
                     <div className="divide-y divide-gray-100">
                       {answerFields.map((field) => (
@@ -281,7 +271,7 @@ export default function TeamBonusPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-400">
+                  <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500">
                     작성된 제출 받을 항목 답변이 없습니다.
                   </div>
                 )}
@@ -290,7 +280,7 @@ export default function TeamBonusPage() {
 
             {leftTab === 2 && (
               <div className="p-6 space-y-4">
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="ui-card bg-white rounded-xl border border-gray-200 p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <h3 className="text-sm font-semibold text-gray-700">지원 개요</h3>
                     <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
@@ -299,19 +289,19 @@ export default function TeamBonusPage() {
                   </div>
                   <div className="space-y-2">
                     <div>
-                      <span className="text-xs text-gray-400">{isTeamApp ? '팀명' : '지원자'}</span>
+                      <span className="text-xs text-gray-500">{isTeamApp ? '팀명' : '지원자'}</span>
                       <p className="text-sm font-medium text-gray-800 mt-0.5">{currentTeam.name}</p>
                     </div>
                     {currentTeam.description && (
                       <div>
-                        <span className="text-xs text-gray-400">소개</span>
+                        <span className="text-xs text-gray-500">소개</span>
                         <p className="text-sm text-gray-700 mt-0.5">{currentTeam.description}</p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="ui-card bg-white rounded-xl border border-gray-200 p-5">
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">{isTeamApp ? '팀 구성원' : '지원자 정보'}</h3>
                   {isTeamApp ? (
                     <TeamMemberList
@@ -323,15 +313,15 @@ export default function TeamBonusPage() {
                   ) : (
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <div className="text-xs text-gray-400 mb-1">이름</div>
+                        <div className="text-xs text-gray-500 mb-1">이름</div>
                         <div className="text-sm text-gray-800 break-all">{appInfo.name || '—'}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-400 mb-1">이메일</div>
+                        <div className="text-xs text-gray-500 mb-1">이메일</div>
                         <div className="text-sm text-gray-800 break-all">{appInfo.email || '—'}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-400 mb-1">연락처</div>
+                        <div className="text-xs text-gray-500 mb-1">연락처</div>
                         <div className="text-sm text-gray-800 break-all">{formatPhone(appInfo.phone) || '—'}</div>
                       </div>
                     </div>
@@ -343,17 +333,17 @@ export default function TeamBonusPage() {
         </div>
 
         {/* 오른쪽 - 가산점 입력 */}
-        <div className="w-[380px] flex-shrink-0 flex flex-col bg-white">
+        <div className="w-full lg:w-[380px] flex-shrink-0 flex flex-col bg-white">
           <div className="flex-1 overflow-auto p-5 space-y-5">
             <div>
               <h2 className="text-base font-bold text-gray-900">가산점 입력</h2>
-              <p className="text-xs text-gray-400 mt-0.5">매니저 단독 평가 · 심사위원 평균에 가산됩니다.</p>
+              <p className="text-xs text-gray-500 mt-0.5">매니저 단독 평가 · 심사위원 평균에 가산됩니다.</p>
             </div>
 
             {/* 점수 요약 */}
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-lg border border-gray-200 p-3 text-center">
-                <p className="text-[11px] text-gray-400 mb-1">심사위원 평균</p>
+                <p className="text-[11px] text-gray-500 mb-1">심사위원 평균</p>
                 <p className="text-lg font-bold text-gray-700">{fmt(base)}</p>
               </div>
               <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-center">
@@ -373,16 +363,16 @@ export default function TeamBonusPage() {
               return (
                 <div key={item.id} className="border border-gray-200 rounded-lg p-3">
                   <label htmlFor={`bonus-${item.id}`} className="block text-sm font-medium text-gray-700 break-words">{item.name}</label>
-                  <p className="text-xs text-gray-400 mt-1 mb-2">{item.maxScore == null ? '상한 없음' : `최대 ${Number(item.maxScore)}점`}</p>
-                  <div className="flex items-center gap-2">
-                    <input id={`bonus-${item.id}`} type="number" min="0" max={item.maxScore ?? 99999999.99} step="0.01"
+                  <p className="text-xs text-gray-500 mt-1 mb-2">{item.maxScore == null ? '상한 없음' : `최대 ${Number(item.maxScore)}점`}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input id={`bonus-${item.id}`} type="number" min="0" max={item.maxScore ?? 99999999.9} step="0.1"
                       value={value} placeholder="—" disabled={saving}
                       onChange={(e) => setBonusInputs((inputs) => ({ ...inputs, [item.id]: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                      className="ui-input w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
                     <button type="button" disabled={saving || value === ''} onClick={() => setBonusInputs((inputs) => ({ ...inputs, [item.id]: '' }))}
-                      className="shrink-0 text-xs text-gray-500 disabled:opacity-40">초기화</button>
+                      className="ui-button ui-button--ghost shrink-0 text-xs text-gray-500 disabled:opacity-40">초기화</button>
                   </div>
-                  {!valid && <p className="text-xs text-red-600 mt-2">0 이상, 최대 점수 이하로 소수 둘째 자리까지 입력하세요.</p>}
+                  {!valid && <p className="text-xs text-red-600 mt-2">0 이상, 최대 점수 이하로 소수 첫째 자리까지 입력하세요.</p>}
                 </div>
               );
             })}
@@ -403,14 +393,14 @@ export default function TeamBonusPage() {
               <button
                 onClick={handleSave}
                 disabled={saving || !dirty || !bonusValid}
-                className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                className="ui-button ui-button--ghost flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {saving ? '저장 중...' : '저장'}
               </button>
               <button
                 onClick={saveAndAdvance}
                 disabled={saving || !bonusValid}
-                className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
+                className="ui-button ui-button--primary flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
               >
                 {nextTeam ? '저장 후 다음 팀' : '저장 후 완료'}
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

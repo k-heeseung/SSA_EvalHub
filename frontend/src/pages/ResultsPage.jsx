@@ -47,9 +47,9 @@ export default function ResultsPage() {
     });
 
   return (
-    <div className="p-8">
+    <div className="ui-page">
       <PageHeader
-        breadcrumb={['EvalHub', '결과·내보내기']}
+        breadcrumb={['평가ON', '결과·내보내기']}
         title="평가 결과"
         subtitle="평가가 진행 중이거나 완료된 프로그램만 모았습니다. 진행 중인 순서대로 우선 확인하세요."
       />
@@ -58,10 +58,10 @@ export default function ResultsPage() {
         <div className="text-gray-500">로딩 중...</div>
       ) : programs.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-          <p className="text-gray-400">결과를 확인할 수 있는 프로그램이 없습니다.</p>
+          <p className="text-gray-500">결과를 확인할 수 있는 프로그램이 없습니다.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
           {programs.map((program) => (
             <ResultProgramCard
               key={program.id}
@@ -84,7 +84,7 @@ function ResultProgramCard({ program, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-xl border border-gray-200 p-5 cursor-pointer hover:shadow-md transition-shadow"
+      className="ui-card bg-white rounded-xl border border-gray-200 p-5 cursor-pointer hover:shadow-md transition-shadow"
     >
       <div className="flex items-start justify-between mb-4">
         <div className="min-w-0">
@@ -110,15 +110,15 @@ function ResultProgramCard({ program, onClick }) {
 
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <p className="text-xs text-gray-400 mb-1">지원 팀</p>
+          <p className="text-xs text-gray-500 mb-1">지원 팀</p>
           <p className="text-xl font-bold text-gray-900">{program.teamCount ?? '-'}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-400 mb-1">심사위원</p>
+          <p className="text-xs text-gray-500 mb-1">심사위원</p>
           <p className="text-xl font-bold text-gray-900">{program.evaluatorCount ?? '-'}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-400 mb-1">평가율</p>
+          <p className="text-xs text-gray-500 mb-1">평가율</p>
           <p className={`text-xl font-bold ${evalRate === 100 ? 'text-green-600' : 'text-blue-600'}`}>
             {evalRate}%
           </p>

@@ -1,8 +1,12 @@
+import SidebarToggle from '../components/SidebarToggle';
+import useSidebarCollapsed from '../query/useSidebarCollapsed';
 import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../api/auth';
 import useCurrentUser from '../query/useCurrentUser';
+import AdminBreadcrumbContext from '../contexts/AdminBreadcrumbContext';
+import './AdminLayout.css';
 
 const FolderIcon = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -66,6 +70,11 @@ const navItems = [
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [breadcrumbTarget, setBreadcrumbTarget] = useState(null);
+  const [sidebarCollapsed, toggleSidebar] = useSidebarCollapsed('manager');
+  const accountTrigger = useRef(null);
+  const mobileNavTrigger = useRef(null);
   // 프로그램 상세로 들어올 때 넘어온 state.back이 있으면(예: 결과·내보내기에서 진입) 그 메뉴를 활성 표시한다.
   const activeOverridePath = location.state?.back?.path ?? null;
   const queryClient = useQueryClient();
@@ -83,8 +92,12 @@ export default function AdminLayout() {
     const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
     };
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') { setMenuOpen(false); accountTrigger.current?.focus(); }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => { document.removeEventListener('mousedown', handleClickOutside); document.removeEventListener('keydown', handleEscape); };
   }, [menuOpen]);
 
   const handleLogout = async () => {
@@ -97,28 +110,52 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <aside className="w-56 bg-white border-r border-gray-100 flex flex-col flex-shrink-0">
-        <div className="px-4 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="성균관대학교" className="w-8 h-8 object-contain flex-shrink-0" />
+    <AdminBreadcrumbContext.Provider value={breadcrumbTarget}>
+    <div className="app-admin-shell flex h-screen bg-gray-50">
+      {(
+        <header className="app-mobile-bar">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img src="/logo.png" alt="성균관대학교" className="w-8 h-8 object-contain" />
             <div className="min-w-0">
-              <div className="text-sm font-bold text-gray-900 leading-tight">EvalHub</div>
-              <div className="text-xs text-gray-400 truncate">AI중심대학사업단 · 운영</div>
+              <p className="text-sm font-bold text-gray-900">평가ON</p>
             </div>
           </div>
+          <button ref={mobileNavTrigger} aria-expanded={mobileNavOpen} aria-controls="admin-navigation"
+            onClick={() => setMobileNavOpen((open) => !open)}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 focus-visible:outline-2 focus-visible:outline-blue-600">
+            <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+            {mobileNavOpen ? '메뉴 닫기' : '메뉴'}
+          </button>
+        </header>
+      )}
+      <aside id="admin-navigation"
+        onKeyDown={(event) => {
+          if (mobileNavOpen && !menuOpen && event.key === 'Escape') {
+            setMobileNavOpen(false);
+            mobileNavTrigger.current?.focus();
+          }
+        }}
+        className={`admin-sidebar ${sidebarCollapsed ? 'admin-sidebar-collapsed' : ''} w-56 bg-white border-r border-gray-100 flex flex-col flex-shrink-0 ${mobileNavOpen ? 'app-navigation-open' : ''}`}>
+        <div className="admin-sidebar-heading px-4 py-2 border-b border-gray-100">
+          <div className="admin-sidebar-brand flex items-center gap-2.5">
+            <img src="/logo.png" alt="성균관대학교" className="w-8 h-8 object-contain flex-shrink-0" />
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-gray-900 leading-tight">평가ON</div>
+            </div>
+          </div>
+          <SidebarToggle collapsed={sidebarCollapsed} controls="admin-navigation" onClick={() => { toggleSidebar(); setMenuOpen(false); }} />
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1.5">운영</p>
+            <p className="admin-nav-caption text-xs font-semibold text-gray-500 uppercase tracking-wider px-2 mb-1.5">운영</p>
             <div className="space-y-0.5">
               {visibleNavItems.map((item) => {
                 if (item.noPage) {
                   return (
                     <div
                       key={item.label}
-                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-400 cursor-default"
+                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-500 cursor-default"
                     >
                       {item.icon}
                       {item.label}
@@ -131,7 +168,8 @@ export default function AdminLayout() {
                 return (
                   <Link
                     key={item.path}
-                    to={item.path}
+                    to={item.path} aria-label={item.label} title={item.label}
+                    onClick={() => setMobileNavOpen(false)}
                     className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive
                         ? 'bg-blue-50 text-blue-700'
@@ -139,7 +177,7 @@ export default function AdminLayout() {
                     }`}
                   >
                     {item.icon}
-                    {item.label}
+                    <span className="admin-nav-label">{item.label}</span>
                   </Link>
                 );
               })}
@@ -147,35 +185,36 @@ export default function AdminLayout() {
           </div>
 
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2 mb-1.5">시스템</p>
+            <p className="admin-nav-caption text-xs font-semibold text-gray-500 uppercase tracking-wider px-2 mb-1.5">시스템</p>
             <button
-              onClick={() => navigate('/admin/settings')}
+              aria-label="설정" title="설정"
+              onClick={() => { setMobileNavOpen(false); navigate('/admin/settings'); }}
               className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 w-full transition-colors cursor-pointer"
             >
               <SettingsIcon />
-              설정
+              <span className="admin-nav-label">설정</span>
             </button>
           </div>
         </nav>
 
-        <div className="px-3 py-3 border-t border-gray-100">
+        <div className="admin-sidebar-account px-3 py-3 border-t border-gray-100">
           <div className="relative" ref={menuRef}>
-            <button
+            <button ref={accountTrigger} aria-label="계정 메뉴" aria-expanded={menuOpen} aria-controls="admin-account-actions"
               onClick={() => setMenuOpen((v) => !v)}
               className="flex items-center gap-2.5 w-full px-1.5 py-1.5 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer text-left"
             >
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
                 {initials}
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="admin-account-copy flex-1 min-w-0">
                 <div className="text-xs font-medium text-gray-800 truncate">{user.email || '관리자'}</div>
-                <div className="text-xs text-gray-400">{roleLabel}</div>
+                <div className="text-xs text-gray-500">{roleLabel}</div>
               </div>
               {/* 닫힘=∨(아래), 열림=∧(위) */}
-              <ChevronIcon className={`text-gray-400 flex-shrink-0 ${menuOpen ? 'rotate-180' : ''}`} />
+              <ChevronIcon className={`admin-account-chevron text-gray-500 flex-shrink-0 ${menuOpen ? 'rotate-180' : ''}`} />
             </button>
             {menuOpen && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-10">
+              <div id="admin-account-actions" className="admin-account-actions absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-10">
                 <button
                   onClick={() => { setMenuOpen(false); navigate('/admin/settings'); }}
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
@@ -196,9 +235,20 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
-        <Outlet />
-      </main>
+      <div className="admin-workspace flex-1 flex flex-col min-w-0 min-h-0">
+        <header className="admin-breadcrumb-bar">
+          <div className="admin-breadcrumb-slot" ref={setBreadcrumbTarget}>
+            <nav className="admin-breadcrumb-fallback" aria-label="현재 위치">
+              <span>평가ON</span><span aria-hidden="true">›</span>
+              <span aria-current="page">{location.pathname.endsWith('/settings') ? '내 계정 설정' : [...superAdminNavItems, ...navItems].find(item => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`))?.label || '프로그램'}</span>
+            </nav>
+          </div>
+        </header>
+        <main className="admin-page-content flex-1 overflow-auto min-w-0 min-h-0">
+          <Outlet />
+        </main>
+      </div>
     </div>
+    </AdminBreadcrumbContext.Provider>
   );
 }

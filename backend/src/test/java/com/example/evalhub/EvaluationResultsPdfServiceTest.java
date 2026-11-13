@@ -60,8 +60,8 @@ class EvaluationResultsPdfServiceTest {
     @Test void generatesSearchableKoreanPdfWithSubmittedScoresAndItemBonuses() throws Exception {
         when(evaluations.getEvaluationResults(1L)).thenReturn(List.of(team("한글 평가팀", TeamStatus.PASSED, "첫 번째 총평")));
         var file = service.export(1L, false);
-        assertThat(file.filename()).isEqualTo("글로벌챌린지_상세평가.pdf");
-        assertThat(text(file.bytes())).contains("글로벌챌린지", "한글 평가팀", "김심사", "교육 수료", "특허", "85.0", "90.0", "첫 번째 총평")
+        assertThat(file.filename()).isEqualTo("글로벌챌린지_전체 평균_상세평가.pdf");
+        assertThat(text(file.bytes())).contains("글로벌챌린지", "한글 평가팀", "김심사", "교육 수료", "특허", "심사 1명 미제출", "90.0", "첫 번째 총평")
                 .doesNotContain("임시저장비공개내용");
         Files.createDirectories(Path.of("build/pdf-qa"));
         Files.write(Path.of("build/pdf-qa/details.pdf"), file.bytes());
@@ -71,7 +71,7 @@ class EvaluationResultsPdfServiceTest {
         when(evaluations.getEvaluationResults(1L)).thenReturn(List.of(
                 team("합격팀", TeamStatus.PASSED, "비공개심사평"), team("불합격팀", TeamStatus.FAILED, "비공개심사평")));
         var file = service.export(1L, true);
-        assertThat(text(file.bytes())).contains("최종 합격 결과", "합격팀", "총 1팀", "90.0")
+        assertThat(text(file.bytes())).contains("최종 합격 결과", "합격팀", "총 1팀", "심사 1명 미제출")
                 .doesNotContain("불합격팀", "비공개심사평", "김심사");
         Files.createDirectories(Path.of("build/pdf-qa"));
         Files.write(Path.of("build/pdf-qa/final.pdf"), file.bytes());
@@ -89,13 +89,13 @@ class EvaluationResultsPdfServiceTest {
         Files.write(Path.of("build/pdf-qa/long-comments.pdf"), file.bytes());
     }
 
-    @Test void ranksByUnroundedFinalScoreAndPlacesUnevaluatedTeamsLast() throws Exception {
+    @Test void ranksCalculatedTeamsAndPlacesUnavailableTeamsLast() throws Exception {
         var empty = new TeamEvaluationResult(2L, "미평가팀", TeamStatus.PENDING, null, List.of(), List.of());
         var lower = new TeamEvaluationResult(3L, "낮은점수팀", TeamStatus.PENDING, null,
                 List.of(evaluation(SubmissionStatus.SUBMITTED, "50", "평가")), List.of());
         when(evaluations.getEvaluationResults(1L)).thenReturn(List.of(empty, lower, team("높은점수팀", TeamStatus.PASSED, "총평")));
         String text = text(service.export(1L, false).bytes());
-        assertThat(text.indexOf("높은점수팀")).isLessThan(text.indexOf("낮은점수팀"));
+        assertThat(text.indexOf("낮은점수팀")).isLessThan(text.indexOf("높은점수팀"));
         assertThat(text.indexOf("낮은점수팀")).isLessThan(text.indexOf("미평가팀"));
     }
 
@@ -108,5 +108,17 @@ class EvaluationResultsPdfServiceTest {
         assertThatThrownBy(() -> service.export(99L, false)).isInstanceOfSatisfying(ResponseStatusException.class,
                 error -> assertThat(error.getStatusCode().value()).isEqualTo(404));
         verifyNoInteractions(evaluations);
+    }
+    @Test void selectedMethodChangesPdfTotalsAndMarksExcludedScores() throws Exception {
+        var complete = new TeamEvaluationResult(1L, "산출팀", TeamStatus.PASSED, new BigDecimal("5"), List.of(
+                evaluation(SubmissionStatus.SUBMITTED, "60", "총평"), evaluation(SubmissionStatus.SUBMITTED, "80", "총평"),
+                evaluation(SubmissionStatus.SUBMITTED, "85", "총평"), evaluation(SubmissionStatus.SUBMITTED, "90", "총평"),
+                evaluation(SubmissionStatus.SUBMITTED, "100", "총평")), List.of());
+        when(evaluations.getEvaluationResults(1L)).thenReturn(List.of(complete));
+        assertThat(text(service.export(1L, false).bytes())).contains("전체 평균", "88.0");
+        var trimmed=service.export(1L, false, com.example.evalhub.service.EvaluationResultScoring.Method.TRIMMED);
+        assertThat(text(trimmed.bytes())).contains("최고·최저 제외 평균", "90.0");
+        assertThat(text(trimmed.bytes()).replaceAll("\\s+", "")).contains("(제외)");
+        assertThat(trimmed.filename()).contains("최고·최저 제외 평균");
     }
 }

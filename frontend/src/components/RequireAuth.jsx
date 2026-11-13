@@ -15,7 +15,7 @@ export default function RequireAuth({ roles, children }) {
   useRealtimeSync(Boolean(user));
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">로그인 확인 중...</div>;
+    return <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">로그인 확인 중...</div>;
   }
   if (isError || !user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;

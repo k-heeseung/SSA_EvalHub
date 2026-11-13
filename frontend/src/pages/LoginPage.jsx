@@ -99,7 +99,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-dvh flex">
       {/* 좌측 패널 */}
       <div className="hidden lg:flex lg:w-[480px] xl:w-[560px] flex-shrink-0 flex-col bg-gradient-to-br from-slate-100 to-blue-50 relative overflow-hidden">
         {/* 배경 장식 */}
@@ -114,14 +114,13 @@ export default function LoginPage() {
           <div className="flex items-center gap-2.5">
             <img src="/logo.png" alt="성균관대학교" className="w-8 h-8 object-contain" />
             <div>
-              <div className="text-sm font-bold text-gray-800 leading-none">EVALHUB</div>
-              <div className="text-[10px] text-gray-500 mt-0.5">SKKU · AI 중심대학사업단</div>
+              <div className="text-sm font-bold text-gray-800 leading-none">평가ON</div>
             </div>
           </div>
 
           {/* 중앙 카피 */}
           <div className="flex-1 flex flex-col justify-center">
-            <p className="text-[11px] font-semibold tracking-widest text-blue-500 uppercase mb-4">
+            <p className="text-sm font-semibold tracking-wide text-blue-500 uppercase mb-4">
               Integrated Evaluation Platform
             </p>
             <h2 className="text-3xl font-bold text-gray-900 leading-snug mb-4">
@@ -134,17 +133,17 @@ export default function LoginPage() {
           </div>
 
           {/* 카피라이트 */}
-          <p className="text-[10px] text-gray-400">
+          <p className="text-xs text-gray-500">
             © 2026 Sungkyunkwan University · AI Convergence University Project
           </p>
         </div>
       </div>
 
       {/* 우측 폼 패널 */}
-      <div className="flex-1 flex items-center justify-center px-6 py-10 bg-white">
-        <div className="w-full max-w-sm">
+      <div className="flex-1 min-w-0 flex items-center justify-center px-4 sm:px-6 py-8 sm:py-10 bg-white">
+        <div className="w-full max-w-md">
           <p className="text-xs font-medium text-blue-600 mb-1">로그인</p>
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">계정으로 시작하기</h1>
+          <h1 className="ui-page-title font-bold text-gray-900 mb-6">계정으로 시작하기</h1>
 
           {/* 역할 탭 */}
           <div className="grid grid-cols-3 gap-2 mb-6">
@@ -153,7 +152,7 @@ export default function LoginPage() {
                 key={r.key}
                 type="button"
                 onClick={() => { setRoleKey(r.key); setError(''); }}
-                className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
+                className={`min-h-11 flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-xs font-medium transition-all cursor-pointer ${
                   roleKey === r.key
                     ? 'border-blue-500 bg-blue-50 text-blue-700'
                     : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
@@ -170,14 +169,14 @@ export default function LoginPage() {
             <div>
               <label className="flex items-center gap-2 mb-1.5">
                 <span className="text-sm font-medium text-gray-700">이메일</span>
-                <span className="text-xs text-gray-400">이메일이 아이디로 사용됩니다</span>
+                <span className="text-xs text-gray-500">아이디로 사용됩니다</span>
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoFocus
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                className="ui-input w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
               />
             </div>
 
@@ -191,13 +190,13 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 pr-10 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                  className="ui-input w-full px-3.5 py-2.5 pr-14 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  className="ui-button ui-button--ghost absolute right-1 top-1/2 -translate-y-1/2 min-w-11 text-gray-500 hover:text-gray-600 cursor-pointer"
                 >
                   <EyeIcon open={showPassword} />
                 </button>
@@ -220,7 +219,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50"
+              className="ui-button ui-button--primary w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50"
             >
               {submitting ? '로그인 중...' : '로그인'}
             </button>
@@ -229,14 +228,14 @@ export default function LoginPage() {
           {/* 구분선 */}
           <div className="flex items-center gap-3 my-4">
             <div className="flex-1 h-px bg-gray-100" />
-            <span className="text-xs text-gray-400">또는</span>
+            <span className="text-xs text-gray-500">또는</span>
             <div className="flex-1 h-px bg-gray-100" />
           </div>
 
           {/* 회원가입 */}
           <div className="mt-5 flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
             <div className="flex items-center gap-2 text-xs text-gray-500">
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               지원자이신가요? 계정을 만들고 지원하세요.
@@ -244,7 +243,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => navigate('/signup')}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer"
+              className="ui-button ui-button--ghost text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 cursor-pointer"
             >
               회원가입
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

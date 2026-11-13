@@ -19,6 +19,7 @@ import TeamsPage from './pages/TeamsPage';
 import ResultsPage from './pages/ResultsPage';
 import SettingsPage from './pages/SettingsPage';
 import ApplicantHomePage from './pages/ApplicantHomePage';
+import ApplicantProgramPage from './pages/ApplicantProgramPage';
 import ApplicantSubmissionsPage from './pages/ApplicantSubmissionsPage';
 import ApplicantFormPage from './pages/ApplicantFormPage';
 import ApplicantSubmittedPage from './pages/ApplicantSubmittedPage';
@@ -72,6 +73,7 @@ export default function App() {
           </RequireAuth>
         )}>
           <Route index element={<ApplicantHomePage />} />
+          <Route path="programs/:programId" element={<ApplicantProgramPage />} />
           {/* 구 '지원하기' 경로는 통합된 인덱스로 리다이렉트 */}
           <Route path="apply" element={<Navigate to="/applicant" replace />} />
           <Route path="apply/:applicationId" element={<ApplicantFormPage />} />

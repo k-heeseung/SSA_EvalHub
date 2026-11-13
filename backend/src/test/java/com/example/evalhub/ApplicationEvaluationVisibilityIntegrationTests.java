@@ -250,7 +250,7 @@ class ApplicationEvaluationVisibilityIntegrationTests {
     }
 
     @Test
-    void assigningEvaluatorReopensCompletedProgram() {
+    void assigningEvaluatorKeepsCompletedProgramInactive() {
         User manager = saveUser(Role.MANAGER);
         User evaluator = saveUser(Role.EVALUATOR);
         Program program = saveProgram(manager);
@@ -266,7 +266,7 @@ class ApplicationEvaluationVisibilityIntegrationTests {
         entityManager.clear();
 
         assertThat(programRepository.findById(program.getId()).orElseThrow().getStatus())
-                .isEqualTo(Status.ACTIVE);
+                .isEqualTo(Status.INACTIVE);
     }
 
     private User saveUser(Role role) {

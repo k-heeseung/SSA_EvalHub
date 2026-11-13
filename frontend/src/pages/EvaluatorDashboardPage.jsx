@@ -55,18 +55,18 @@ export default function EvaluatorDashboardPage() {
 
   if (loading)
     return (
-      <div className="h-full overflow-auto p-8 flex items-center justify-center">
-        <p className="text-gray-400">로딩 중...</p>
+      <div className="ui-page min-h-full overflow-auto flex items-center justify-center">
+        <p className="text-gray-500">로딩 중...</p>
       </div>
     );
 
   if (error)
     return (
-      <div className="h-full overflow-auto p-8 flex flex-col items-center justify-center">
+      <div className="ui-page min-h-full overflow-auto flex flex-col items-center justify-center">
         <p className="text-red-500 mb-4">{error}</p>
         <button
           onClick={() => navigate('/login')}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm cursor-pointer"
+          className="ui-button ui-button--primary px-4 py-2 bg-blue-600 text-white rounded-lg text-sm cursor-pointer"
         >
           다시 로그인
         </button>
@@ -75,11 +75,11 @@ export default function EvaluatorDashboardPage() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="p-8">
+      <div className="ui-page">
         {/* 상단 브레드크럼 */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <span>EvalHub</span>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span>평가ON</span>
             <span>›</span>
             <span className="text-gray-600 font-medium">내 심사</span>
           </div>
@@ -94,8 +94,8 @@ export default function EvaluatorDashboardPage() {
         </div>
 
         {/* 웰컴 배너 */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-6 mb-6">
-          <div className="flex items-center justify-between">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-6 mb-2">
+          <div className="flex flex-wrap items-center justify-between gap-5">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -103,7 +103,7 @@ export default function EvaluatorDashboardPage() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900 mb-0.5">
+                <h1 className="ui-page-title font-bold text-gray-900 mb-0.5">
                   안녕하세요, <span className="text-blue-700">{userName}</span>님
                 </h1>
                 <p className="text-sm text-gray-600">
@@ -112,7 +112,7 @@ export default function EvaluatorDashboardPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-8 text-center">
+            <div className="flex flex-wrap items-center gap-6 text-center">
               <div>
                 <div className="text-2xl font-bold text-gray-900">{assignments.length}</div>
                 <div className="text-xs text-gray-500">프로그램</div>
@@ -145,17 +145,17 @@ export default function EvaluatorDashboardPage() {
         {/* 배정 목록 */}
         {assignments.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-            <p className="text-gray-400 text-lg">배정된 심사 프로그램이 없습니다.</p>
+            <p className="text-gray-500 text-lg">배정된 심사 프로그램이 없습니다.</p>
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h2 className="text-base font-semibold text-gray-800">
                 프로그램 목록 ({assignments.length})
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
               {assignments.map((assignment) => {
                 const config = STATUS_CONFIG[assignment.status] || STATUS_CONFIG.ASSIGNED;
                 return (
@@ -190,7 +190,7 @@ function AssignmentCard({ assignment, programTitle, config, onEvaluate, period }
   const periodText = formatProgramPeriod(assignment, 'evaluation');
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+    <div className="ui-card hover:shadow-md transition-shadow">
       {/* 상태 배지 */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5">
@@ -207,7 +207,7 @@ function AssignmentCard({ assignment, programTitle, config, onEvaluate, period }
       <h3 className="font-bold text-gray-900 mb-1">{programTitle}</h3>
       <p className="text-sm text-gray-500 mb-3">심사 대상 {assignment.teamCount}팀</p>
       <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 rounded-lg px-2.5 py-2 mb-4">
-        <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
         <span>심사 기간 {periodText}</span>
@@ -218,7 +218,7 @@ function AssignmentCard({ assignment, programTitle, config, onEvaluate, period }
         <div className="flex items-center justify-between text-xs mb-1.5">
           <span className="text-gray-500">
             제출 <span className="font-semibold text-gray-800">{assignment.submittedCount}</span>
-            <span className="text-gray-400"> / {assignment.teamCount}팀</span>
+            <span className="text-gray-500"> / {assignment.teamCount}팀</span>
           </span>
           {assignment.draftCount > 0 && (
             <span className="text-amber-600">임시저장 {assignment.draftCount}</span>
@@ -242,7 +242,7 @@ function AssignmentCard({ assignment, programTitle, config, onEvaluate, period }
       {/* 액션 버튼 */}
       <button
         onClick={onEvaluate}
-        className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${config.actionStyle}`}
+        className={`min-h-11 w-full py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${config.actionStyle}`}
       >
         {period.canEvaluate ? config.action : '자료·심사 보기'}
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -71,7 +71,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-dvh flex">
       {/* 좌측 패널 */}
       <div className="hidden lg:flex lg:w-[420px] xl:w-[480px] flex-shrink-0 flex-col bg-gradient-to-br from-slate-100 to-blue-50 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
@@ -85,13 +85,12 @@ export default function SignupPage() {
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">E</div>
             <div>
-              <div className="text-sm font-bold text-gray-800 leading-none">EVALHUB</div>
-              <div className="text-[10px] text-gray-500 mt-0.5">SKKU · AI 중심대학사업단</div>
+              <div className="text-sm font-bold text-gray-800 leading-none">평가ON</div>
             </div>
           </div>
 
           <div className="flex-1 flex flex-col justify-center">
-            <p className="text-[11px] font-semibold tracking-widest text-blue-500 uppercase mb-4">
+            <p className="text-sm font-semibold tracking-wide text-blue-500 uppercase mb-4">
               Applicant Sign Up
             </p>
             <h2 className="text-3xl font-bold text-gray-900 leading-snug mb-4">
@@ -117,26 +116,26 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <p className="text-[10px] text-gray-400">© 2026 Sungkyunkwan University</p>
+          <p className="text-xs text-gray-500">© 2026 Sungkyunkwan University</p>
         </div>
       </div>
 
       {/* 우측 폼 패널 */}
-      <div className="flex-1 flex items-center justify-center px-6 py-10 bg-white overflow-y-auto">
-        <div className="w-full max-w-sm">
+      <div className="flex-1 min-w-0 flex items-center justify-center px-4 sm:px-6 py-8 sm:py-10 bg-white overflow-y-auto">
+        <div className="w-full max-w-md">
           <p className="text-xs font-medium text-blue-600 mb-1">회원가입</p>
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">지원자 계정 만들기</h1>
+          <h1 className="ui-page-title font-bold text-gray-900 mb-6">지원자 계정 만들기</h1>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* 이름 + 휴대폰 */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">이름</label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={set('name')}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="ui-input w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
               </div>
               <div>
@@ -146,7 +145,7 @@ export default function SignupPage() {
                   value={form.phone}
                   onChange={setPhone}
                   placeholder="010-0000-0000"
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="ui-input w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
               </div>
             </div>
@@ -154,14 +153,14 @@ export default function SignupPage() {
             {/* 이메일 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                이메일 <span className="text-gray-400 font-normal">· 로그인 아이디로 사용</span>
+                이메일 <span className="text-gray-500 font-normal">· 로그인 아이디로 사용</span>
               </label>
               <div className="relative">
                 <input
                   type="email"
                   value={form.email}
                   onChange={set('email')}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none pr-24"
+                  className="ui-input w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none pr-24"
                 />
                 {emailValid && (
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-green-600 font-medium">
@@ -175,14 +174,14 @@ export default function SignupPage() {
             </div>
 
             {/* 소속 대학/학과 + 학번 */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">소속 대학/학과</label>
                 <input
                   type="text"
                   value={form.department}
                   onChange={set('department')}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="ui-input w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
               </div>
               <div>
@@ -191,7 +190,7 @@ export default function SignupPage() {
                   type="text"
                   value={form.studentId}
                   onChange={set('studentId')}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="ui-input w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
               </div>
             </div>
@@ -204,13 +203,13 @@ export default function SignupPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={set('password')}
-                  className="w-full px-3.5 py-2.5 pr-10 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="ui-input w-full px-3.5 py-2.5 pr-14 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  className="ui-button ui-button--ghost absolute right-1 top-1/2 -translate-y-1/2 min-w-11 text-gray-500 hover:text-gray-600 cursor-pointer"
                 >
                   <EyeIcon open={showPassword} />
                 </button>
@@ -228,7 +227,7 @@ export default function SignupPage() {
                       />
                     ))}
                   </div>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-500">
                     영문·숫자·특수문자 포함 10자 이상 ·{' '}
                     <span className={`font-medium ${
                       strength.score <= 1 ? 'text-red-500' :
@@ -248,7 +247,7 @@ export default function SignupPage() {
                   type={showConfirm ? 'text' : 'password'}
                   value={form.passwordConfirm}
                   onChange={set('passwordConfirm')}
-                  className={`w-full px-3.5 py-2.5 pr-16 border rounded-lg text-sm focus:ring-2 outline-none ${
+                  className={`ui-input w-full px-3.5 py-2.5 pr-20 border rounded-lg text-sm focus:ring-2 outline-none ${
                     form.passwordConfirm
                       ? passwordMatch
                         ? 'border-green-400 focus:ring-green-400'
@@ -261,7 +260,7 @@ export default function SignupPage() {
                     type="button"
                     onClick={() => setShowConfirm((v) => !v)}
                     tabIndex={-1}
-                    className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                    className="ui-button ui-button--ghost text-gray-500 hover:text-gray-600 cursor-pointer"
                   >
                     <EyeIcon open={showConfirm} />
                   </button>
@@ -301,7 +300,7 @@ export default function SignupPage() {
                   className="w-4 h-4 accent-blue-600 rounded cursor-pointer mt-0.5 flex-shrink-0"
                 />
                 <span className="text-sm text-gray-600">
-                  <span className="text-gray-400 font-medium">[선택]</span> 프로그램 소식·마감 알림 수신 동의
+                  <span className="text-gray-500 font-medium">[선택]</span> 프로그램 소식·마감 알림 수신 동의
                 </span>
               </label>
             </div>
@@ -311,7 +310,7 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 cursor-pointer"
+              className="ui-button ui-button--primary w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 cursor-pointer"
             >
               {submitting ? '처리 중...' : '회원가입 완료'}
             </button>
@@ -322,7 +321,7 @@ export default function SignupPage() {
             <button
               type="button"
               onClick={() => navigate('/login')}
-              className="text-blue-600 font-medium hover:text-blue-800 cursor-pointer"
+              className="ui-button ui-button--ghost text-blue-600 font-medium hover:text-blue-800 cursor-pointer"
             >
               로그인
             </button>

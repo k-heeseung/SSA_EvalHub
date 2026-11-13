@@ -51,6 +51,12 @@ class MultipleBonusIntegrationTests {
         criterionId = criteria.save(new EvaluationCriterion(p,"criterion",null,BigDecimal.ONE,1)).getId();
         em.flush();
     }
+    @Test void singleDecimalBonusIsAcceptedAndHundredthsRejected() {
+        assertThatThrownBy(() -> manager.updateTeamBonus(programId, teamId, scores(new BigDecimal("1.01"), null)))
+            .isInstanceOf(ResponseStatusException.class);
+        var result = manager.updateTeamBonus(programId, teamId, scores(new BigDecimal("1.1"), new BigDecimal("0.2")));
+        assertThat(result.bonusScore()).isEqualByComparingTo("1.3");
+    }
     UpdateTeamBonusRequest scores(BigDecimal a, BigDecimal b) {
         return new UpdateTeamBonusRequest(List.of(new UpdateTeamBonusRequest.Item(first,a), new UpdateTeamBonusRequest.Item(second,b)));
     }

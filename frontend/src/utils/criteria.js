@@ -1,6 +1,6 @@
 export function validCriterionMaxScore(value) {
-  return /^\d+(\.\d{1,2})?$/.test(String(value))
-    && Number(value) > 0 && Number(value) <= 999999.99;
+  return /^\d+(\.\d)?$/.test(String(value))
+    && Number(value) > 0 && Number(value) <= 999999.9;
 }
 
 export function totalCriterionMaxScore(items) {

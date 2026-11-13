@@ -1,6 +1,7 @@
 package com.example.evalhub.controller;
 
 import com.example.evalhub.service.EvaluationResultsPdfService;
+import com.example.evalhub.service.EvaluationResultScoring;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -23,8 +24,9 @@ public class EvaluationResultExportController {
 
     @GetMapping(value = "/{programId}/evaluation-results/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     public ResponseEntity<byte[]> download(@PathVariable Long programId,
-                                          @RequestParam(defaultValue = "false") boolean onlyPassed) {
-        var file = pdfService.export(programId, onlyPassed);
+                                          @RequestParam(defaultValue = "false") boolean onlyPassed,
+                                          @RequestParam(defaultValue = "ALL") EvaluationResultScoring.Method method) {
+        var file = pdfService.export(programId, onlyPassed, method);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .cacheControl(CacheControl.noStore())

@@ -81,22 +81,22 @@ export default function ManagersPage() {
   );
 
   return (
-    <div className="p-8">
+    <div className="ui-page">
       <PageHeader
-        breadcrumb={['EvalHub', '매니저']}
+        breadcrumb={['평가ON', '매니저']}
         title="매니저 계정 관리"
         subtitle="프로그램 운영을 담당할 매니저 계정을 생성·관리합니다."
       >
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
+          className="ui-button ui-button--primary flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
         >
           + 계정 생성
         </button>
       </PageHeader>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
         <StatCard
           icon={<ShieldStatIcon className="text-blue-500" />}
           iconBg="bg-blue-50"
@@ -125,9 +125,9 @@ export default function ManagersPage() {
 
       {/* 검색 + 테이블 */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100">
+        <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-gray-100">
           <div className="relative flex-1 max-w-sm">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -135,7 +135,7 @@ export default function ManagersPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="이름, 이메일 검색…"
-              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="ui-input w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -144,13 +144,13 @@ export default function ManagersPage() {
                 <button
                   onClick={handleDelete}
                   disabled={selectedIds.size === 0 || deleting}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  className="ui-button ui-button--ghost px-3 py-1.5 rounded-lg text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                   {deleting ? '삭제 중…' : `삭제${selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}`}
                 </button>
                 <button
                   onClick={exitEditMode}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="ui-button ui-button--ghost px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   완료
                 </button>
@@ -158,7 +158,7 @@ export default function ManagersPage() {
             ) : (
               <button
                 onClick={enterEditMode}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
+                className="ui-button ui-button--ghost px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 수정
               </button>
@@ -166,7 +166,7 @@ export default function ManagersPage() {
           </div>
         </div>
 
-        <table className="w-full">
+        <div className="ui-table-scroll"><table className="min-w-[40rem] w-full">
           <thead className="bg-gray-50">
             <tr>
               {editMode && (
@@ -190,11 +190,11 @@ export default function ManagersPage() {
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr>
-                <td colSpan={editMode ? 7 : 6} className="text-center py-12 text-gray-400">로딩 중...</td>
+                <td colSpan={editMode ? 7 : 6} className="text-center py-12 text-gray-500">로딩 중...</td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={editMode ? 7 : 6} className="text-center py-12 text-gray-400">등록된 매니저가 없습니다.</td>
+                <td colSpan={editMode ? 7 : 6} className="text-center py-12 text-gray-500">등록된 매니저가 없습니다.</td>
               </tr>
             ) : (
               filtered.map((manager) => {
@@ -240,14 +240,14 @@ export default function ManagersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-right">
-                      {!editMode && <button className="text-gray-400 hover:text-gray-600 cursor-pointer">···</button>}
+                      {!editMode && <button className="ui-button ui-button--ghost text-gray-500 hover:text-gray-600 cursor-pointer">···</button>}
                     </td>
                   </tr>
                 );
               })
             )}
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       {showModal && (
@@ -270,7 +270,7 @@ function StatCard({ icon, iconBg, title, value, sub, borderColor }) {
         <div>
           <p className="text-xs text-gray-500 mb-1">{title}</p>
           <p className="text-2xl font-bold text-gray-900">{value}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
         </div>
       </div>
     </div>
@@ -360,13 +360,13 @@ function CreateManagerModal({ onClose, onCreated }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[92vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex flex-wrap gap-3 items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-base font-semibold text-gray-800">매니저 계정 생성</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
+          <button onClick={onClose} className="ui-button ui-button--ghost text-gray-500 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">이름</label>
               <input
@@ -374,7 +374,7 @@ function CreateManagerModal({ onClose, onCreated }) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="홍길동"
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="ui-input w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
             <div>
@@ -384,14 +384,14 @@ function CreateManagerModal({ onClose, onCreated }) {
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
                 placeholder="AI중심대학사업단"
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="ui-input w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              이메일 <span className="text-gray-400 font-normal">· 로그인 아이디로 사용</span>
+              이메일 <span className="text-gray-500 font-normal">· 로그인 아이디로 사용</span>
             </label>
             <div className="relative">
               <input
@@ -400,7 +400,7 @@ function CreateManagerModal({ onClose, onCreated }) {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="manager@skku.edu"
                 autoFocus
-                className="w-full px-3.5 py-2.5 pr-24 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                className="ui-input w-full px-3.5 py-2.5 pr-24 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
               />
               {emailValid && (
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-green-600 font-medium">
@@ -414,12 +414,12 @@ function CreateManagerModal({ onClose, onCreated }) {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-wrap gap-3 items-center justify-between mb-2">
               <label className="text-sm font-medium text-gray-700">임시 비밀번호</label>
               <button
                 type="button"
                 onClick={regenerate}
-                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                className="ui-button ui-button--ghost flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -429,18 +429,18 @@ function CreateManagerModal({ onClose, onCreated }) {
             </div>
             <div className="space-y-2">
               <div className="flex items-center gap-0 border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                <span className="px-3 py-2.5 text-xs font-medium text-gray-400 bg-gray-100 border-r border-gray-200 flex-shrink-0 w-20 text-center">비밀번호</span>
+                <span className="px-3 py-2.5 text-xs font-medium text-gray-500 bg-gray-100 border-r border-gray-200 flex-shrink-0 w-20 text-center">비밀번호</span>
                 <span className="flex-1 px-3 py-2.5 text-sm font-mono text-gray-700 truncate">{randomPassword}</span>
                 <button
                   type="button"
                   onClick={() => copyToClipboard(randomPassword)}
-                  className="px-3 py-2.5 text-gray-400 hover:text-blue-500 transition-colors cursor-pointer flex-shrink-0 border-l border-gray-200"
+                  className="ui-button ui-button--ghost px-3 py-2.5 text-gray-500 hover:text-blue-500 transition-colors cursor-pointer flex-shrink-0 border-l border-gray-200"
                   title="복사"
                 >
                   {copied ? <CheckIcon /> : <CopyIcon />}
                 </button>
               </div>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-500">
                 계정 정보는 이메일로 자동 전송됩니다. 첫 로그인 시 비밀번호 변경이 권장됩니다.
               </p>
             </div>
@@ -462,14 +462,14 @@ function CreateManagerModal({ onClose, onCreated }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition-colors cursor-pointer"
+              className="ui-button ui-button--ghost flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition-colors cursor-pointer"
             >
               취소
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
+              className="ui-button ui-button--primary flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
             >
               {submitting ? '생성 중...' : '생성 및 발송'}
             </button>

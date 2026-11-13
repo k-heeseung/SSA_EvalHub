@@ -37,5 +37,5 @@ export const createAssignment = (programId, data) => api.post(`/programs/${progr
 export const cancelAssignment = (assignmentId) => api.delete(`/assignments/${assignmentId}`);
 
 export const getEvaluationResults = (programId) => api.get(`/programs/${programId}/evaluation-results`);
-export const getEvaluationResultsPdf = (programId, onlyPassed = false) =>
-  api.get(`/programs/${programId}/evaluation-results/pdf`, { params: { onlyPassed }, responseType: 'blob' });
+export const getEvaluationResultsPdf = (programId, onlyPassed = false, method = 'ALL') =>
+  api.get(`/programs/${programId}/evaluation-results/pdf`, { params: { onlyPassed, method }, responseType: 'blob' });

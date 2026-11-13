@@ -1,3 +1,4 @@
+import './EvaluationPage.css';
 import BonusSummary from '../components/BonusSummary';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -5,6 +6,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getEvaluationView, saveDraft, submitEvaluation } from '../api/evaluations';
 import { FIELD_TYPE_LABEL, normalizeFieldType, parseCheckboxValue, isFileType } from '../utils/formFields';
 import TeamMemberList from '../components/TeamMemberList';
+import PdfViewerErrorBoundary from '../components/PdfViewerErrorBoundary';
 import { formatPhone } from '../utils/phone';
 
 // pdfjs 번들이 크므로 심사 화면에서 뷰어를 열 때만 로드한다.
@@ -12,7 +14,7 @@ const PdfViewer = lazy(() => import('../components/PdfViewer'));
 import { queryKeys } from '../query/keys';
 import { useLiveApiQuery } from '../query/useApiQuery';
 import { useScheduleNow } from '../query/useScheduleNow';
-import { formatProgramPeriod, formatScheduleTime, scheduleInstant } from '../utils/programSchedule';
+import { formatScheduleTime, scheduleInstant } from '../utils/programSchedule';
 import { evaluationPeriod, scheduleNow } from '../utils/evaluationPeriod';
 
 const LEFT_TABS = ['발표 자료', '지원서 정보', '팀 정보'];
@@ -223,7 +225,7 @@ export default function EvaluationPage() {
   if (loading)
     return (
       <div className="h-full flex items-center justify-center">
-        <p className="text-gray-400">로딩 중...</p>
+        <p className="text-gray-500">로딩 중...</p>
       </div>
     );
   if (!view)
@@ -236,7 +238,7 @@ export default function EvaluationPage() {
   const isDraft = view.submission && !isSubmitted;
   const criteria = view.criteria || [];
   const scoredCount = criteria.filter((c) => scores[c.id] !== undefined && scores[c.id] !== '').length;
-  const totalScore = criteria.reduce((sum, c) => sum + (Number(scores[c.id]) || 0), 0);
+  const totalScore = Math.round(criteria.reduce((sum, c) => sum + (Number(scores[c.id]) || 0), 0) * 10) / 10;
   const maxTotal = criteria.reduce((sum, c) => sum + (c.maxScore || 0), 0);
   const allScored = scoredCount === criteria.length && criteria.length > 0;
   const files = view.attachments || [];
@@ -251,12 +253,12 @@ export default function EvaluationPage() {
   const answerFields = (application?.fields || []).filter((f) => !isFileType(f.fieldType));
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="min-h-full lg:h-full flex flex-col">
       {/* 상단 네비게이션 바 */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 flex items-center h-12 px-4 gap-3">
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 flex flex-wrap items-center min-h-14 px-4 py-2 gap-3">
         <button
           onClick={goToTeamList}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors cursor-pointer px-2 py-1 rounded hover:bg-gray-100"
+          className="ui-button flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors cursor-pointer px-2 py-1 rounded hover:bg-gray-100"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -293,16 +295,16 @@ export default function EvaluationPage() {
           )}
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {teams.length > 1 && (
-            <span className="text-sm text-gray-400">
+            <span className="text-sm text-gray-500">
               {currentIndex >= 0 ? `${currentIndex + 1} / ${teams.length}` : ''} 팀
             </span>
           )}
           {prevTeam && (
             <button
               onClick={() => navigateToTeam(prevTeam)}
-              className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+              className="ui-button flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -313,7 +315,7 @@ export default function EvaluationPage() {
           {nextTeam && (
             <button
               onClick={() => navigateToTeam(nextTeam)}
-              className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+              className="ui-button flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
             >
               다음
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,7 +331,7 @@ export default function EvaluationPage() {
             onClick={() => setScoringOpen((v) => !v)}
             title={scoringOpen ? '심사 패널을 접고 자료를 넓게 봅니다' : '심사 패널을 다시 펼칩니다'}
             aria-pressed={!scoringOpen}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
+            className="ui-button flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zM15 5v14" />
@@ -339,22 +341,17 @@ export default function EvaluationPage() {
         </div>
       </div>
 
-      <div className="flex-shrink-0 px-4 py-2 text-xs text-gray-500 bg-gray-50 border-b border-gray-200" aria-live="polite">
-        심사 기간 {formatProgramPeriod(view.program, 'evaluation')} · {period.label}
-        {dirty && !period.canEvaluate && <span className="ml-2 text-amber-700">저장되지 않은 변경사항이 있습니다.</span>}
-      </div>
-
       {/* 본문: 좌우 분할 패널 */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row lg:overflow-hidden">
         {/* 왼쪽 패널 - 자료 뷰어 */}
-        <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200">
+        <div className={`min-w-0 ${leftTab === 0 ? 'min-h-[28rem]' : 'min-h-0'} lg:min-h-0 lg:flex-1 flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gray-200`}>
           {/* 탭 바 */}
-          <div className="flex-shrink-0 bg-white border-b border-gray-200 flex items-center px-4 h-11">
+          <div className="ui-tabs flex-shrink-0 bg-white border-b border-gray-200 flex items-center px-4 min-h-11 overflow-x-auto">
             {LEFT_TABS.map((tab, i) => (
               <button
                 key={tab}
                 onClick={() => setLeftTab(i)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px h-full ${
+                className={`min-h-11 flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px h-full ${
                   leftTab === i
                     ? 'border-blue-600 text-blue-700'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -388,7 +385,7 @@ export default function EvaluationPage() {
                   <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
                       <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center mx-auto mb-3">
-                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </div>
@@ -398,7 +395,7 @@ export default function EvaluationPage() {
                 ) : (
                   <>
                     {/* 파일 인덱스 탭 */}
-                    <div className="flex-shrink-0 bg-white border-b border-gray-200 flex items-center gap-1.5 px-3 py-2 overflow-x-auto">
+                    <div className="evaluation-file-tabs flex-shrink-0 bg-white border-b border-gray-200 flex items-center gap-1.5 px-3 py-2 overflow-x-auto">
                       {files.map((att, i) => {
                         const activeFile = i === activePdfIndex;
                         return (
@@ -406,7 +403,7 @@ export default function EvaluationPage() {
                             key={att.id}
                             onClick={() => setPdfIndex(i)}
                             title={att.originalFilename}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer border ${
+                            className={`min-h-11 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer border ${
                               activeFile
                                 ? 'bg-blue-50 text-blue-700 border-blue-200'
                                 : 'text-gray-500 hover:bg-gray-100 border-transparent'
@@ -423,26 +420,28 @@ export default function EvaluationPage() {
                       })}
                     </div>
                     {/* 선택한 파일 뷰어 */}
+                    <PdfViewerErrorBoundary>
                     <Suspense fallback={(
-                      <div className="flex-1 flex items-center justify-center text-sm text-gray-400">뷰어를 불러오는 중…</div>
+                      <div className="flex-1 flex items-center justify-center text-sm text-gray-500">뷰어를 불러오는 중…</div>
                     )}>
                       <PdfViewer
                         key={files[activePdfIndex].id}
                         url={files[activePdfIndex].contentUrl}
                         filename={files[activePdfIndex].originalFilename}
-                        className="flex-1"
+                        className="evaluation-pdf-viewer flex-1 min-h-[28rem] lg:min-h-0"
                       />
                     </Suspense>
+                    </PdfViewerErrorBoundary>
                   </>
                 )}
               </div>
             )}
 
             {leftTab === 1 && (
-              <div className="p-6 space-y-4">
+              <div className="p-4 sm:p-6 space-y-4">
                 {/* 제출 받을 항목 답변 */}
                 {answerFields.length > 0 ? (
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                  <div className="ui-card">
                     <h3 className="text-sm font-semibold text-gray-700 mb-1">제출 받을 항목</h3>
                     <div className="divide-y divide-gray-100">
                       {answerFields.map((field) => {
@@ -462,13 +461,13 @@ export default function EvaluationPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-400">
+                  <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-500">
                     작성된 제출 받을 항목 답변이 없습니다.
                   </div>
                 )}
 
                 {view.attachments && view.attachments.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                  <div className="ui-card">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">제출 파일</h3>
                     <div className="space-y-2">
                       {view.attachments.map((att) => (
@@ -492,9 +491,9 @@ export default function EvaluationPage() {
             )}
 
             {leftTab === 2 && (
-              <div className="p-6 space-y-4">
+              <div className="p-4 sm:p-6 space-y-4">
                 {/* 지원 개요 */}
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="ui-card">
                   <div className="flex items-center gap-2 mb-3">
                     <h3 className="text-sm font-semibold text-gray-700">지원 개요</h3>
                     {application && (
@@ -505,16 +504,16 @@ export default function EvaluationPage() {
                   </div>
                   <div className="space-y-2">
                     <div>
-                      <span className="text-xs text-gray-400">프로그램</span>
+                      <span className="text-xs text-gray-500">프로그램</span>
                       <p className="text-sm text-gray-700 mt-0.5">{view.program.title}</p>
                     </div>
                     <div>
-                      <span className="text-xs text-gray-400">{isTeamApp ? '팀명' : '지원자'}</span>
+                      <span className="text-xs text-gray-500">{isTeamApp ? '팀명' : '지원자'}</span>
                       <p className="text-sm font-medium text-gray-800 mt-0.5">{view.team.name}</p>
                     </div>
                     {view.team.description && (
                       <div>
-                        <span className="text-xs text-gray-400">소개</span>
+                        <span className="text-xs text-gray-500">소개</span>
                         <p className="text-sm text-gray-700 mt-0.5">{view.team.description}</p>
                       </div>
                     )}
@@ -523,7 +522,7 @@ export default function EvaluationPage() {
 
                 {/* 팀 구성원 / 지원자 정보 */}
                 {application ? (
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                  <div className="ui-card">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">{isTeamApp ? '팀 구성원' : '지원자 정보'}</h3>
                     {isTeamApp ? (
                       <TeamMemberList
@@ -533,24 +532,24 @@ export default function EvaluationPage() {
                         phone={appInfo.phone}
                       />
                     ) : (
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
-                          <div className="text-xs text-gray-400 mb-1">이름</div>
+                          <div className="text-xs text-gray-500 mb-1">이름</div>
                           <div className="text-sm text-gray-800 break-all">{appInfo.name || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-xs text-gray-400 mb-1">이메일</div>
+                          <div className="text-xs text-gray-500 mb-1">이메일</div>
                           <div className="text-sm text-gray-800 break-all">{appInfo.email || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-xs text-gray-400 mb-1">연락처</div>
+                          <div className="text-xs text-gray-500 mb-1">연락처</div>
                           <div className="text-sm text-gray-800 break-all">{formatPhone(appInfo.phone) || '—'}</div>
                         </div>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                  <div className="ui-card">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">
                       팀원 {view.team.members?.length ? `${view.team.members.length}명` : ''}
                     </h3>
@@ -566,7 +565,7 @@ export default function EvaluationPage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-400">팀원 정보가 없습니다.</p>
+                      <p className="text-sm text-gray-500">팀원 정보가 없습니다.</p>
                     )}
                   </div>
                 )}
@@ -577,7 +576,7 @@ export default function EvaluationPage() {
 
         {/* 오른쪽 패널 - 심사 (접으면 왼쪽 자료 뷰어가 그만큼 넓어진다) */}
         {scoringOpen && (
-        <div className="w-96 flex-shrink-0 flex flex-col bg-white overflow-hidden">
+        <div className="w-full lg:w-96 xl:w-[26rem] flex-shrink-0 flex flex-col bg-white lg:overflow-hidden">
           <div className="px-5 pt-3"><BonusSummary items={view.team.bonusScores} /></div>
           {/* 심사 헤더 */}
           <div className="flex-shrink-0 px-5 py-3 border-b border-gray-100">
@@ -585,7 +584,7 @@ export default function EvaluationPage() {
               <span className="text-sm text-gray-500">
                 심사 진행 <span className="font-semibold text-gray-800">{scoredCount} / {criteria.length}</span> 항목
               </span>
-              <span className="text-sm text-gray-400">총점</span>
+              <span className="text-sm text-gray-500">총점</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="w-full bg-gray-100 rounded-full h-1.5 mr-4">
@@ -596,14 +595,14 @@ export default function EvaluationPage() {
               </div>
               <div className="text-right flex-shrink-0">
                 <span className="text-2xl font-bold text-blue-600">{totalScore}</span>
-                <span className="text-sm text-gray-400">/{maxTotal}</span>
+                <span className="text-sm text-gray-500">/{maxTotal}</span>
               </div>
             </div>
 
             {/* 저장 상태 표시 (드라이브 스타일 자동저장 아이콘) */}
             <div className="mt-1.5 h-4 flex items-center justify-end gap-1 text-xs">
               {isReadOnly ? null : saving ? (
-                <span className="flex items-center gap-1 text-gray-400">
+                <span className="flex items-center gap-1 text-gray-500">
                   <svg className="w-3.5 h-3.5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
                   </svg>
@@ -617,7 +616,7 @@ export default function EvaluationPage() {
                   저장되지 않은 변경사항
                 </span>
               ) : lastSavedAt ? (
-                <span className="flex items-center gap-1 text-gray-400">
+                <span className="flex items-center gap-1 text-gray-500">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -628,7 +627,7 @@ export default function EvaluationPage() {
           </div>
 
           {/* 심사 항목 */}
-          <div className="flex-1 overflow-auto p-4 space-y-4">
+          <div className="flex-1 lg:overflow-auto p-4 space-y-4">
             {criteria.map((criterion) => {
               const currentScore = scores[criterion.id];
               const hasScore = currentScore !== undefined && currentScore !== '';
@@ -649,7 +648,7 @@ export default function EvaluationPage() {
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                           </svg>
                         ) : (
-                          <span className="w-3.5 h-3.5 flex-shrink-0 text-xs font-bold text-gray-400 flex items-center justify-center">D</span>
+                          <span className="w-3.5 h-3.5 flex-shrink-0 text-xs font-bold text-gray-500 flex items-center justify-center">D</span>
                         )}
                         <span className="text-sm font-semibold text-gray-900">{criterion.name}</span>
                       </div>
@@ -661,7 +660,7 @@ export default function EvaluationPage() {
                       <span className="text-base font-bold text-gray-800">
                         {hasScore ? scoreNum : '—'}
                       </span>
-                      <span className="text-xs text-gray-400">/{criterion.maxScore}</span>
+                      <span className="text-xs text-gray-500">/{criterion.maxScore}</span>
                     </div>
                   </div>
 
@@ -686,7 +685,7 @@ export default function EvaluationPage() {
                 disabled={isReadOnly}
                 maxLength={200}
                 placeholder="심사 대상에 대한 코멘트"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-default"
+                className="ui-input w-full px-3 py-2 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-default"
               />
             </div>
           </div>
@@ -721,7 +720,7 @@ export default function EvaluationPage() {
               </div>
             ) : (
               !allScored && criteria.length > 0 && (
-                <div className="px-4 py-2 text-xs text-center text-gray-400 bg-gray-50">
+                <div className="px-4 py-2 text-xs text-center text-gray-500 bg-gray-50">
                   모든 항목 심사 시 제출할 수 있습니다.
                 </div>
               )
@@ -731,14 +730,14 @@ export default function EvaluationPage() {
               <div className="flex gap-2 p-3">
                 <button
                   onClick={goToTeamList}
-                  className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="ui-button flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   팀 목록으로
                 </button>
                 {nextTeam && (
                   <button
                     onClick={() => navigateToTeam(nextTeam)}
-                    className="flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium cursor-pointer flex items-center justify-center gap-1.5"
+                    className="ui-button flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     다음 팀
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -751,14 +750,14 @@ export default function EvaluationPage() {
               <div className="flex gap-2 p-3">
                 <button
                   onClick={() => { const blocked = periodMessage(); if (blocked) { setMessage(blocked); return; } setIsEditingSubmitted(true); setMessage(''); }}
-                  className="flex-1 py-2.5 border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors cursor-pointer"
+                  className="ui-button flex-1 py-2.5 border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors cursor-pointer"
                 >
                   수정하기
                 </button>
                 {nextTeam ? (
                   <button
                     onClick={() => navigateToTeam(nextTeam)}
-                    className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    className="ui-button ui-button--primary flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     다음 팀
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -768,7 +767,7 @@ export default function EvaluationPage() {
                 ) : (
                   <button
                     onClick={goToTeamList}
-                    className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    className="ui-button ui-button--primary flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -781,14 +780,14 @@ export default function EvaluationPage() {
               <div className="flex gap-2 p-3">
                 <button
                   onClick={goToTeamList}
-                  className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="ui-button flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   팀 목록으로
                 </button>
                 {nextTeam && (
                   <button
                     onClick={() => navigateToTeam(nextTeam)}
-                    className="flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium cursor-pointer flex items-center justify-center gap-1.5"
+                    className="ui-button flex-1 py-2.5 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     다음 팀
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -802,14 +801,14 @@ export default function EvaluationPage() {
                 <button
                   onClick={handleCancelSubmittedEdit}
                   disabled={submitting}
-                  className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="ui-button flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   수정 취소
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={submitting || !allScored || !dirty}
-                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="ui-button ui-button--primary flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {submitting ? '수정 중...' : '수정 완료'}
                 </button>
@@ -819,7 +818,7 @@ export default function EvaluationPage() {
                 <button
                   onClick={handleSaveDraft}
                   disabled={saving}
-                  className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                  className="ui-button flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -829,10 +828,10 @@ export default function EvaluationPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={saving || submitting || !allScored}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 cursor-pointer flex items-center justify-center gap-1.5 ${
+                  className={`min-h-11 flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 cursor-pointer flex items-center justify-center gap-1.5 ${
                     allScored
                       ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                   }`}
                 >
                   {submitting ? '제출 중...' : allScored ? '최종 제출' : `${criteria.length - scoredCount}개 항목 남음`}
@@ -853,13 +852,13 @@ export default function EvaluationPage() {
             <div className="flex gap-3">
               <button
                 onClick={cancelLeave}
-                className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
+                className="ui-button flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 계속 작성
               </button>
               <button
                 onClick={confirmLeave}
-                className="flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors cursor-pointer"
+                className="ui-button ui-button--danger flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors cursor-pointer"
               >
                 저장하지 않고 나가기
               </button>
@@ -879,35 +878,35 @@ function ScoreInput({ value, maxScore, onChange, disabled = false }) {
     const raw = e.target.value;
     if (raw === '') { onChange(''); return; }
     const n = Number(raw);
-    if (!Number.isFinite(n) || !/^\d+(\.\d{0,2})?$/.test(raw)) return;
+    if (!Number.isFinite(n) || !/^\d+(\.\d{0,1})?$/.test(raw)) return;
     onChange(Math.max(0, Math.min(maxScore, n)));
   };
 
   return (
     <div className="flex items-center gap-3">
-      <span className="text-[10px] text-gray-400 flex-shrink-0 w-3 text-center">0</span>
+      <span className="text-[10px] text-gray-500 flex-shrink-0 w-3 text-center">0</span>
       <input
         type="range"
         min={0}
         max={maxScore}
-        step={0.01}
+        step={0.1}
         value={sliderValue}
         onChange={(e) => onChange(Number(e.target.value))}
         disabled={disabled}
         className="flex-1 h-1.5 accent-blue-600 cursor-pointer disabled:cursor-default disabled:opacity-60"
         aria-label="점수 슬라이더"
       />
-      <span className="text-[10px] text-gray-400 flex-shrink-0 w-4 text-center">{maxScore}</span>
+      <span className="text-[10px] text-gray-500 flex-shrink-0 w-4 text-center">{maxScore}</span>
       <input
         type="number"
         min={0}
         max={maxScore}
-        step={0.01}
+        step={0.1}
         value={hasValue ? sliderValue : ''}
         onChange={handleText}
         disabled={disabled}
         placeholder="—"
-        className="w-14 px-2 py-1.5 border border-gray-200 rounded-md text-sm text-center text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-default"
+        className="ui-input w-14 px-2 py-1.5 border border-gray-200 rounded-md text-base text-center text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-600 disabled:cursor-default"
         aria-label="점수 직접 입력"
       />
     </div>

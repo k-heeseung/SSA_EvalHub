@@ -10,7 +10,7 @@ export function bonusSummary(items = []) {
 export function validBonusScore(value, max) {
   if (value === '') return true;
   const n = Number(value);
-  return Number.isFinite(n) && n >= 0 && n <= 99999999.99
-    && Math.abs(n * 100 - Math.round(n * 100)) < 0.000001
+  return Number.isFinite(n) && n >= 0 && n <= 99999999.9
+    && Math.abs(n * 10 - Math.round(n * 10)) < 0.000001
     && (max == null || n <= Number(max));
 }

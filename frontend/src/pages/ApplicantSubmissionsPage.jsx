@@ -23,7 +23,7 @@ function StatCard({ label, count, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`text-left rounded-xl border p-4 transition-colors cursor-pointer ${
+      className={`min-h-11 text-left rounded-xl border p-4 transition-colors cursor-pointer ${
         active ? 'border-blue-300 bg-blue-50/50' : 'border-gray-200 bg-white hover:bg-gray-50'
       }`}
     >
@@ -90,19 +90,19 @@ export default function ApplicantSubmissionsPage() {
   };
 
   if (loading) {
-    return <div className="max-w-4xl mx-auto px-6 py-16 text-center text-gray-400">로딩 중...</div>;
+    return <div className="ui-page ui-page--narrow text-center text-gray-500">로딩 중...</div>;
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="ui-page ui-page--narrow">
       {/* 헤더 */}
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">내 지원서</h1>
+      <div className="mb-2">
+        <h1 className="ui-page-title font-bold text-gray-900">내 지원서</h1>
         <p className="text-sm text-gray-500 mt-1">제출했거나 작성 중인 지원서를 확인하고 관리하세요.</p>
       </div>
 
       {/* 요약 스트립 (클릭 시 필터) */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-3 gap-2 mb-2">
         <StatCard label="전체" count={apps.length} active={filter === 'ALL'} onClick={() => setFilter('ALL')} />
         <StatCard label="작성 중" count={draftCount} active={filter === 'DRAFT'} onClick={() => setFilter('DRAFT')} />
         <StatCard label="제출 완료" count={submittedCount} active={filter === 'SUBMITTED'} onClick={() => setFilter('SUBMITTED')} />
@@ -110,7 +110,7 @@ export default function ApplicantSubmissionsPage() {
 
       {/* 마감 임박 경고 (작성 중) */}
       {urgentDrafts.length > 0 && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5">
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-2">
           <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 9v4m0 4h.01M10.3 4.6l-7 12.1A2 2 0 005 19.7h14a2 2 0 001.7-3l-7-12.1a2 2 0 00-3.4 0z" />
           </svg>
@@ -121,7 +121,7 @@ export default function ApplicantSubmissionsPage() {
                 <button
                   key={a.applicationId}
                   onClick={() => goToApp(a)}
-                  className="underline underline-offset-2 hover:text-amber-900 cursor-pointer"
+                  className="ui-button ui-button--ghost underline underline-offset-2 hover:text-amber-900 cursor-pointer"
                 >
                   {a.programTitle} ({periodFor(a).deadlineLabel})
                 </button>
@@ -137,7 +137,7 @@ export default function ApplicantSubmissionsPage() {
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+            className={`min-h-11 px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
               filter === f.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
             }`}
           >
@@ -151,13 +151,13 @@ export default function ApplicantSubmissionsPage() {
       {/* 지원서 리스트 */}
       {filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 py-14 text-center">
-          <p className="text-gray-400 mb-4">
+          <p className="text-gray-500 mb-4">
             {apps.length === 0 ? '아직 작성한 지원서가 없습니다.' : '해당하는 지원서가 없습니다.'}
           </p>
           {apps.length === 0 && (
             <button
               onClick={() => navigate('/applicant')}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
+              className="ui-button ui-button--primary px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
             >
               지원하러 가기 →
             </button>
@@ -175,11 +175,11 @@ export default function ApplicantSubmissionsPage() {
             const timeLabel = app.status === 'SUBMITTED' ? '제출' : '수정';
 
             return (
-              <div key={app.applicationId} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-sm transition-shadow">
+              <div key={app.applicationId} className="ui-card hover:shadow-sm transition-shadow">
                 <p className="text-xs text-gray-500 mb-3" aria-live="polite">지원 기간 {formatProgramPeriod(app, 'application')} · {period.label}</p>
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 flex-shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 flex-shrink-0">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
@@ -201,11 +201,11 @@ export default function ApplicantSubmissionsPage() {
                           <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
                           {status.label}
                         </span>
-                        <span className="text-gray-400">
+                        <span className="text-gray-500">
                           {timeLabel} {formatDateTime(time)}
                         </span>
                         {dday && (
-                          <span className={`font-medium ${closed ? 'text-gray-400' : 'text-amber-600'}`}>
+                          <span className={`font-medium ${closed ? 'text-gray-500' : 'text-amber-600'}`}>
                             {closed ? `마감 (${formatScheduleTime(scheduleInstant(app, 'applicationDeadline'))})` : `마감 ${dday}`}
                           </span>
                         )}
@@ -219,7 +219,7 @@ export default function ApplicantSubmissionsPage() {
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button
                       onClick={() => goToApp(app)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                      className={`min-h-11 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                         app.status === 'SUBMITTED'
                           ? 'border border-gray-200 text-gray-600 hover:bg-gray-50'
                           : 'border border-amber-300 text-amber-600 hover:bg-amber-50'
@@ -232,7 +232,7 @@ export default function ApplicantSubmissionsPage() {
                       disabled={cancellingId !== null || !period.canCancel}
                       title={period.cancelMessage || '지원 취소'}
                       aria-label="지원 취소"
-                      className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
+                      className="ui-button p-2 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-50"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

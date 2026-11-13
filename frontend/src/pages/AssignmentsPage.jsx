@@ -28,7 +28,7 @@ const STATUS_BADGE = {
   SCHEDULED:  { label: '접수 예정',  cls: 'bg-violet-100 text-violet-700' },
   PENDING_EVALUATION: { label: '평가 대기', cls: 'bg-sky-100 text-sky-700' },
   INACTIVE:   { label: '집계 완료',  cls: 'bg-gray-100 text-gray-500' },
-  DRAFT:      { label: '임시 저장',  cls: 'bg-gray-100 text-gray-400' },
+  DRAFT:      { label: '임시 저장',  cls: 'bg-gray-100 text-gray-500' },
 };
 
 const TYPE_LABEL = {
@@ -151,7 +151,7 @@ function AssignCell({ checked, submitted, pendingAction, onChange }) {
   const isPendingAdd    = pendingAction === 'add';
   const isPendingRemove = pendingAction === 'remove';
 
-  let cls = 'inline-flex items-center justify-center w-6 h-6 rounded-md border-2 transition-all duration-150 ';
+  let cls = 'inline-flex shrink-0 items-center justify-center w-6 h-6 rounded-md border-2 transition-all duration-150 ';
   if (submitted) {
     cls += checked ? 'bg-gray-300 border-gray-300 cursor-not-allowed' : 'border-gray-200 bg-gray-50 cursor-not-allowed';
   } else if (isPendingAdd) {
@@ -169,18 +169,22 @@ function AssignCell({ checked, submitted, pendingAction, onChange }) {
       type="button"
       onClick={onChange}
       disabled={submitted}
+      aria-pressed={!isPendingRemove && (checked || isPendingAdd)}
+      aria-label={isPendingRemove ? '배정 해제 대기' : isPendingAdd ? '배정 추가 대기' : checked ? '배정됨' : '미배정'}
       title={submitted ? '제출 완료된 배정은 취소할 수 없습니다.' : undefined}
-      className={cls}
+      className="ui-button ui-button--ghost inline-flex min-h-11 min-w-11 items-center justify-center p-0"
     >
+      <span aria-hidden="true" className={cls}>
       {isPendingRemove ? (
-        <svg className="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+        <svg className="w-3 h-3 shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       ) : (checked || isPendingAdd) ? (
-        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
+        <svg className="w-3 h-3 shrink-0 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
         </svg>
       ) : null}
+      </span>
     </button>
   );
 }
@@ -347,17 +351,17 @@ export default function AssignmentsPage() {
   const displayedPrograms = activeTab === 'unassigned' ? unassignedPrograms : programs;
 
   return (
-    <div className="p-8">
+    <div className="ui-page">
       <PageHeader
-        breadcrumb={['EvalHub', '심사 배정']}
+        breadcrumb={['평가ON', '심사 배정']}
         title="심사위원 배정"
         subtitle="심사위원을 프로그램 단위로 배정합니다. 배정된 심사위원은 해당 프로그램의 모든 지원 팀을 평가합니다."
       >
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={cancelChanges}
             disabled={!hasPendingChanges}
-            className={`px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${
+            className={`ui-button ui-button--ghost px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${
               hasPendingChanges
                 ? 'border-gray-300 text-gray-600 hover:bg-gray-50 cursor-pointer'
                 : 'border-gray-200 text-gray-300 cursor-not-allowed'
@@ -368,10 +372,10 @@ export default function AssignmentsPage() {
           <button
             onClick={confirmAssignments}
             disabled={!hasPendingChanges || applying}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`ui-button ui-button--ghost px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               hasPendingChanges && !applying
                 ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
             }`}
           >
             {applying ? '처리 중...' : hasPendingChanges ? `배정 확정 (${pendingCount}건)` : '배정 확정'}
@@ -380,18 +384,18 @@ export default function AssignmentsPage() {
       </PageHeader>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-400">로딩 중...</div>
+        <div className="text-center py-20 text-gray-500">로딩 중...</div>
       ) : (
-        <div className="flex gap-5 items-start">
+        <div className="flex flex-col xl:flex-row gap-2 items-stretch xl:items-start">
           {/* 매트릭스 */}
           <div className="flex-1 min-w-0">
             <div className="bg-white rounded-xl border border-gray-200 overflow-auto">
               {evaluators.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">등록된 심사위원이 없습니다.</div>
+                <div className="text-center py-12 text-gray-500 text-sm">등록된 심사위원이 없습니다.</div>
               ) : displayedPrograms.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">표시할 프로그램이 없습니다.</div>
+                <div className="text-center py-12 text-gray-500 text-sm">표시할 프로그램이 없습니다.</div>
               ) : (
-                <table className="w-full">
+                <div className="ui-table-scroll"><table className="min-w-[40rem] w-full">
                   <thead>
                     <tr className="border-b border-gray-100">
                       <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 min-w-[200px]">프로그램</th>
@@ -431,7 +435,7 @@ export default function AssignmentsPage() {
                                     {badge.label}
                                   </span>
                                 </div>
-                                <div className="text-xs text-gray-400">
+                                <div className="text-xs text-gray-500">
                                   {typeLabel} · {program.teamCount ?? 0}팀
                                 </div>
                               </div>
@@ -462,13 +466,13 @@ export default function AssignmentsPage() {
                       );
                     })}
                   </tbody>
-                </table>
+                </table></div>
               )}
             </div>
           </div>
 
           {/* 우측 사이드바 */}
-          <div className="w-52 flex-shrink-0 space-y-4">
+          <div className="w-full xl:w-52 flex-shrink-0 space-y-2">
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h3 className="text-xs font-semibold text-gray-700 mb-3">배정 현황</h3>
               <div className="space-y-2.5">
@@ -482,11 +486,11 @@ export default function AssignmentsPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h3 className="text-xs font-semibold text-gray-700 mb-3">심사위원별 부담</h3>
               {evaluatorWorkload.length === 0 ? (
-                <p className="text-xs text-gray-400">없음</p>
+                <p className="text-xs text-gray-500">없음</p>
               ) : (
                 <div className="space-y-2.5">
                   {evaluatorWorkload.map((ev) => (
-                    <div key={ev.id} className="flex items-center gap-2">
+                    <div key={ev.id} className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-gray-600 w-14 truncate flex-shrink-0">
                         {ev.name || ev.email?.split('@')[0]}
                       </span>
@@ -496,7 +500,7 @@ export default function AssignmentsPage() {
                           style={{ width: `${(ev.count / maxWorkload) * 100}%` }}
                         />
                       </div>
-                      <span className="text-xs text-gray-400 w-4 text-right flex-shrink-0">{ev.count}</span>
+                      <span className="text-xs text-gray-500 w-4 text-right flex-shrink-0">{ev.count}</span>
                     </div>
                   ))}
                 </div>
@@ -515,7 +519,7 @@ export default function AssignmentsPage() {
               </p>
               <button
                 onClick={openSmartModal}
-                className="w-full py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors cursor-pointer"
+                className="ui-button ui-button--primary w-full py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors cursor-pointer"
               >
                 제안 받기
               </button>
@@ -561,14 +565,14 @@ function SmartAssignModal({ suggestions, programs, evaluators, onApply, onClose 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap gap-3 items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex flex-wrap items-center gap-2">
             <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
             <h2 className="text-base font-semibold text-gray-800">스마트 배정 제안</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
+          <button onClick={onClose} className="ui-button ui-button--ghost text-gray-500 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
         </div>
 
         <div className="px-6 py-5">
@@ -582,7 +586,7 @@ function SmartAssignModal({ suggestions, programs, evaluators, onApply, onClose 
               <p className="text-sm font-medium text-gray-700">
                 {suggestions.length === 0 ? '모든 프로그램에 배정이 완료되었습니다.' : '모든 제안을 제거했습니다.'}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-gray-500 mt-1">
                 {suggestions.length === 0 ? '추가로 제안할 배정이 없습니다.' : '적용할 배정이 없습니다.'}
               </p>
             </div>
@@ -601,7 +605,7 @@ function SmartAssignModal({ suggestions, programs, evaluators, onApply, onClose 
                     해제 {removeCount}건
                   </span>
                 )}
-                <span className="text-xs text-gray-400 ml-auto">× 로 제외 가능</span>
+                <span className="text-xs text-gray-500 ml-auto">× 로 제외 가능</span>
               </div>
               <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
                 {Object.entries(grouped).map(([programId, { add, remove }]) => {
@@ -619,7 +623,7 @@ function SmartAssignModal({ suggestions, programs, evaluators, onApply, onClose 
                               <button
                                 type="button"
                                 onClick={() => removeItem(Number(programId), evId, 'remove')}
-                                className="w-3.5 h-3.5 flex items-center justify-center rounded-full hover:bg-red-200 text-red-300 hover:text-red-600 transition-colors cursor-pointer ml-0.5"
+                                className="ui-button ui-button--ghost min-h-11 min-w-11 p-0 flex items-center justify-center rounded-full hover:bg-red-200 text-red-300 hover:text-red-600 transition-colors cursor-pointer ml-0.5"
                               >×</button>
                             </span>
                           );
@@ -632,7 +636,7 @@ function SmartAssignModal({ suggestions, programs, evaluators, onApply, onClose 
                               <button
                                 type="button"
                                 onClick={() => removeItem(Number(programId), evId, 'add')}
-                                className="w-3.5 h-3.5 flex items-center justify-center rounded-full hover:bg-blue-200 text-blue-400 hover:text-blue-700 transition-colors cursor-pointer ml-0.5"
+                                className="ui-button ui-button--ghost min-h-11 min-w-11 p-0 flex items-center justify-center rounded-full hover:bg-blue-200 text-blue-400 hover:text-blue-700 transition-colors cursor-pointer ml-0.5"
                               >×</button>
                             </span>
                           );
@@ -649,14 +653,14 @@ function SmartAssignModal({ suggestions, programs, evaluators, onApply, onClose 
         <div className="flex gap-3 px-6 pb-5">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition-colors cursor-pointer"
+            className="ui-button ui-button--ghost flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition-colors cursor-pointer"
           >
             취소
           </button>
           {pending.length > 0 && (
             <button
               onClick={() => onApply(pending)}
-              className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
+              className="ui-button ui-button--primary flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
             >
               적용하기 ({pending.length}건)
             </button>
@@ -669,7 +673,7 @@ function SmartAssignModal({ suggestions, programs, evaluators, onApply, onClose 
 
 function SidebarStat({ label, value, valueColor = 'text-gray-900' }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-wrap gap-3 items-center justify-between">
       <span className="text-xs text-gray-500">{label}</span>
       <span className={`text-sm font-semibold ${valueColor}`}>{value}</span>
     </div>

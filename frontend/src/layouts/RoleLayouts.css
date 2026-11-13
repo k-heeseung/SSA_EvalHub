@@ -1,0 +1,201 @@
+/* Shared responsive shells for evaluator and applicant roles. */
+.evaluator-shell {
+  min-width:0;
+  height:100dvh
+}
+
+.evaluator-main , .applicant-main {
+  min-width:0;
+  min-height:0
+}
+
+.evaluator-sidebar {
+  min-height:0
+}
+
+.evaluator-sidebar-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.evaluator-brand { min-width:0; }
+.evaluator-sidebar .evaluator-collapse-toggle {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:none;
+  width:32px;
+  min-height:32px;
+  padding:4px;
+  border-radius:6px;
+  color:var(--color-gray-500);
+  cursor:pointer;
+}
+.evaluator-collapse-toggle:hover { background:var(--color-gray-100); color:var(--color-gray-800); }
+@media(min-width:768px) {
+  .evaluator-sidebar-collapsed { width:56px; }
+  .evaluator-sidebar-collapsed .evaluator-sidebar-heading { padding:16px 8px; }
+  .evaluator-sidebar-collapsed .evaluator-brand,
+  .evaluator-sidebar-collapsed .evaluator-nav-caption,
+  .evaluator-sidebar-collapsed .evaluator-nav-label,
+  .evaluator-sidebar-collapsed .evaluator-account-copy,
+  .evaluator-sidebar-collapsed .evaluator-account-chevron { display:none; }
+  .evaluator-sidebar-collapsed .evaluator-collapse-toggle { width:40px; }
+  .evaluator-sidebar-collapsed nav { padding-inline:6px; }
+  .evaluator-sidebar-collapsed nav a { justify-content:center; padding-inline:0; }
+  .evaluator-sidebar-collapsed .evaluator-sidebar-account { padding-inline:6px; }
+  .evaluator-sidebar-collapsed .evaluator-sidebar-account > div > button { justify-content:center; padding-inline:0; }
+  .evaluator-sidebar-collapsed .role-account-actions { left:calc(100% + 8px); right:auto; bottom:0; width:200px; }
+}
+
+.evaluator-sidebar nav a , .evaluator-sidebar button , .applicant-navigation a , .applicant-account button , .role-account-action {
+  min-height:44px
+}
+
+.role-mobile-bar {
+  display:none
+}
+
+.role-mobile-toggle {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  min-height:44px;
+  padding:8px 12px;
+  border:1px solid var(--ui-border);
+  border-radius:8px;
+  font-size:14px;
+  font-weight:500
+}
+
+.role-account-actions {
+  max-width:calc(100vw - 32px)
+}
+
+.evaluator-shell button:focus-visible , .evaluator-shell a:focus-visible , .applicant-shell button:focus-visible , .applicant-shell a:focus-visible {
+  outline:2px solid var(--ui-primary);
+  outline-offset:2px
+}
+
+.applicant-header-inner {
+  min-height:64px;
+  gap:24px
+}
+
+.applicant-brand-navigation , .applicant-account {
+  min-width:0
+}
+
+.applicant-navigation a {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  white-space:nowrap
+}
+
+.applicant-account {
+  flex-shrink:0;
+  max-width:35%
+}
+
+.applicant-account>div {
+  min-width:0;
+  max-width:100%
+}
+
+.applicant-account button {
+  max-width:100%
+}
+
+.applicant-user-name {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap
+}
+
+
+@media(max-width:767px) {
+  .evaluator-shell {
+  flex-direction:column
+}
+
+.role-mobile-bar {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:12px 16px;
+  background:var(--ui-surface);
+  border-bottom:1px solid var(--ui-border);
+  flex-shrink:0
+}
+
+.evaluator-sidebar {
+  display:none;
+  width:100%;
+  max-height:calc(100dvh - 76px);
+  overflow-y:auto;
+  border-right:0;
+  border-bottom:1px solid var(--ui-border)
+}
+
+.evaluator-sidebar.role-navigation-open {
+  display:flex;
+  flex-shrink:0
+}
+
+.evaluator-sidebar>div:first-child {
+  display:none
+}
+
+.evaluator-sidebar nav {
+  flex:none;
+  padding-top:12px;
+  padding-bottom:12px
+}
+
+.evaluator-sidebar .role-account-actions {
+  position:static;
+  margin:8px 0 0
+}
+
+.applicant-header-inner {
+  display:grid;
+  grid-template-columns:minmax(0 , 1fr) auto;
+  gap:0 12px;
+  padding:12px 16px 0
+}
+
+.applicant-brand-navigation {
+  display:contents
+}
+
+.applicant-brand-navigation>div {
+  grid-column:1;
+  grid-row:1
+}
+
+.applicant-account {
+  grid-column:2;
+  grid-row:1;
+  max-width:44vw
+}
+
+.applicant-navigation {
+  grid-column:1/-1;
+  grid-row:2;
+  display:grid;
+  grid-template-columns:repeat(3 , minmax(0 , 1fr));
+  gap:4px;
+  padding:12px 0
+}
+
+.applicant-navigation a {
+  padding-left:4px;
+  padding-right:4px
+}
+
+
+}

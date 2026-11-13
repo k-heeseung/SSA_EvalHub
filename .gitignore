@@ -1,2 +1,32 @@
-# 에디터 로컬 설정
+# 공통 비밀 설정 (예제 파일은 추적)
+.env
+.env.*
+!.env.example
+
+# 공통 에디터 및 OS 파일
 .vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 개인 참고 자료 및 디자인 도구 산출물
+/docs/design/screen/
+.impeccable/
+/.agents/skills/impeccable/
+/.codex/hooks.json
+
+# 실행 로그
+logs/
+*.log
+
+.claude/settings.local.json
+
+uploads/

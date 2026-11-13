@@ -1,310 +1,173 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getEvaluationResults, getEvaluationResultsPdf } from '../api/programs';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Button, TableScroll } from './ui';
+import { changeTeamStatus, getCriteria, getEvaluationResults, getEvaluationResultsPdf } from '../api/programs';
 import { rankedTeams, exportAllTeamsExcel, exportFinalExcel } from '../utils/export';
 import { downloadPdfResponse } from '../utils/pdfDownload';
 import { queryKeys } from '../query/keys';
 import { useLiveApiQuery } from '../query/useApiQuery';
+import { RESULT_METHODS } from '../utils/resultScoring';
+import { RESULT_STATUS } from '../utils/resultPresentation';
+import EvaluationResultDialog from './EvaluationResultDialog';
+import ProgramResultsExports from './ProgramResultsExports';
+import './ProgramResultsPanel.css';
 
-const RESULT_STATUS = {
-  PASSED:  { label: '합격',   badge: 'bg-green-50 text-green-700',  dot: 'bg-green-500' },
-  FAILED:  { label: '불합격', badge: 'bg-red-50 text-red-600',      dot: 'bg-red-400'   },
-  PENDING: { label: '미정',   badge: 'bg-gray-100 text-gray-500',   dot: 'bg-gray-400'  },
-};
+const FILTERS = [{ key: 'ALL', label: '전체' }, ...['PASSED', 'FAILED', 'PENDING'].map(key => ({ key, label: RESULT_STATUS[key].label }))];
+const fmt = (value) => value == null ? '—' : Number(value).toFixed(1);
 
-const FILTER_BUTTONS = [
-  { key: 'ALL',     label: '전체' },
-  { key: 'PASSED',  label: '합격' },
-  { key: 'FAILED',  label: '불합격' },
-  { key: 'PENDING', label: '미정' },
-];
-
-// 팀 평균 점수를 10점 단위 구간으로 분포화 (점수 분포 차트용).
-const SCORE_BUCKETS = [
-  { label: '<60', min: 0,  max: 60 },
-  { label: '60',  min: 60, max: 70 },
-  { label: '70',  min: 70, max: 80 },
-  { label: '80',  min: 80, max: 90 },
-  { label: '90+', min: 90, max: 101 },
-];
-
-// 프로그램 상세 '평가 결과' 탭과 '결과·내보내기' 페이지가 공유하는 결과/내보내기 패널.
 export default function ProgramResultsPanel({ programId, program }) {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState('ALL');
-  const [pdfPending, setPdfPending] = useState(false);
-  const [pdfError, setPdfError] = useState('');
-  const { data: results = [], isPending: loading } = useLiveApiQuery(
-    queryKeys.evaluationResults(programId),
-    () => getEvaluationResults(programId),
-  );
-
-  if (loading) return <div className="text-gray-500">로딩 중...</div>;
-  if (results.length === 0)
-    return (
-      <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-        <p className="text-gray-400">평가 완료된 팀이 없습니다.</p>
-      </div>
-    );
-
-  const programTitle = program?.title || '평가 결과';
-  const downloadPdf = async (onlyPassed = false) => {
-    if (pdfPending) return;
-    setPdfPending(true);
-    setPdfError('');
-    try {
-      const response = await getEvaluationResultsPdf(programId, onlyPassed);
-      await downloadPdfResponse(response, `${programTitle}_${onlyPassed ? '최종합격' : '상세평가'}.pdf`);
-    } catch {
-      setPdfError('PDF 다운로드에 실패했습니다. 잠시 후 다시 시도해주세요.');
-    } finally {
-      setPdfPending(false);
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  const [params, setParams] = useSearchParams();
+  const filter = FILTERS.some(item => item.key === params.get('resultFilter')) ? params.get('resultFilter') : 'ALL';
+  const method = Object.hasOwn(RESULT_METHODS, params.get('resultMethod')) ? params.get('resultMethod') : 'ALL';
+  const selectedId = params.get('resultTeam');
+  const [exportPending, setExportPending] = useState(false);
+  const [exportError, setExportError] = useState('');
+  const [message, setMessage] = useState('');
+  const resultsQuery = useLiveApiQuery(queryKeys.evaluationResults(programId), () => getEvaluationResults(programId));
+  const criteriaQuery = useLiveApiQuery(queryKeys.criteria(programId), () => getCriteria(programId));
+  const results = resultsQuery.data ?? [];
+  const ranked = rankedTeams(results, method);
+  const filtered = filter === 'ALL' ? ranked : ranked.filter(team => team.teamStatus === filter);
+  const selected = ranked.find(team => String(team.teamId) === selectedId);
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const rawPage = Number(params.get('resultPage'));
+  const page = Math.min(Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1, pageCount);
+  const offset = (page - 1) * pageSize;
+  const pageTeams = filtered.slice(offset, offset + pageSize);
+  const calculable = ranked.filter(team => team.final != null);
+  const completed = ranked.filter(team => team.assignedCount > 0 && team.submittedCount === team.assignedCount).length;
+  const average = calculable.length ? (calculable.reduce((sum, team) => sum + team.avg, 0) / calculable.length).toFixed(1) : '—';
+  const buckets = [{ label:'<60', min:0, max:60 }, { label:'60', min:60, max:70 }, { label:'70', min:70, max:80 }, { label:'80', min:80, max:90 }, { label:'90+', min:90, max:Infinity }].map(bucket => ({ ...bucket, count:calculable.filter(team => team.final >= bucket.min && team.final < bucket.max).length }));
+  const maxBucket = Math.max(1, ...buckets.map(bucket => bucket.count));
+  const bonusColumns = new Map((program?.bonusItems ?? []).map(item => [item.id, { ...item, itemId: item.id }]));
+  results.forEach(team => (team.bonusScores ?? []).forEach(item => {
+    if (!bonusColumns.has(item.itemId)) bonusColumns.set(item.itemId, item);
+  }));
+  const bonusItems = [...bonusColumns.values()];
+  const hasBonus = !!program?.bonusEnabled || bonusItems.length > 0 || results.some(team => team.bonusScore != null);
+  const legacyBonus = hasBonus && bonusItems.length === 0;
+  const statusMutation = useMutation({
+    mutationFn: ({ teamId, status }) => changeTeamStatus(programId, teamId, { status }),
+    meta: { skipInvalidation: true },
+  });
+  const updateParams = (values) => setParams((current) => {
+    const next = new URLSearchParams(current);
+    next.set('tab', 'results');
+    Object.entries(values).forEach(([key, value]) => value == null ? next.delete(key) : next.set(key, String(value)));
+    return next;
+  }, { replace: true, state: location.state });
+  const openTeam = (team) => { setMessage(''); updateParams({ resultTeam: team.teamId }); };
+  const nextTeam = selected ? filtered[filtered.findIndex(team => team.teamId === selected.teamId) + 1] : null;
+  const saveVerdict = async (status, advance) => {
+    const savedTeam = selected;
+    const following = nextTeam;
+    if (status !== savedTeam.teamStatus) {
+      const { data: updated } = await statusMutation.mutateAsync({ teamId: savedTeam.teamId, status });
+      queryClient.setQueryData(queryKeys.evaluationResults(programId), (current = []) => current.map(team => (
+        team.teamId === savedTeam.teamId ? { ...team, teamStatus: updated.status } : team
+      )));
+      queryClient.setQueryData(queryKeys.team(programId, savedTeam.teamId), updated);
+      queryClient.setQueryData(queryKeys.teams(programId), (current) => current?.map(team => team.teamId === savedTeam.teamId ? updated : team));
+      void queryClient.invalidateQueries({ queryKey: queryKeys.evaluationResults(programId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.teams(programId) });
+    }
+    if (advance && following) {
+      const remaining = filtered.filter(team => team.teamId !== savedTeam.teamId || filter === 'ALL' || status === filter);
+      const index = remaining.findIndex(team => team.teamId === following.teamId);
+      updateParams({ resultTeam: following.teamId, resultPage: Math.floor(Math.max(index, 0) / pageSize) + 1 });
     }
   };
-  const passedCount  = results.filter((r) => r.teamStatus === 'PASSED').length;
-  const failedCount  = results.filter((r) => r.teamStatus === 'FAILED').length;
-  const pendingCount = results.filter((r) => r.teamStatus === 'PENDING').length;
+  const exportFile = async (format, passedOnly = false) => {
+    if (exportPending) return;
+    setExportError(''); setExportPending(true);
+    try {
+      const title = program?.title || '평가 결과';
+      if (format === 'pdf') {
+        const response = await getEvaluationResultsPdf(programId, passedOnly, method);
+        await downloadPdfResponse(response, `${title}_${RESULT_METHODS[method]}_${passedOnly ? '최종합격' : '상세평가'}.pdf`);
+      } else await (passedOnly ? exportFinalExcel : exportAllTeamsExcel)(title, results, method);
+    } catch { setExportError('파일을 내보내지 못했습니다. 잠시 후 다시 시도해주세요.'); }
+    finally { setExportPending(false); }
+  };
+  const goToTeamInfo = () => navigate(`/admin/programs/${programId}/teams/${selected.teamId}`, {
+    state: { resultReturn: `${location.pathname}${location.search}`, resultMethod: method },
+  });
 
-  const evaluatedTeams = results.filter((r) =>
-    r.evaluations.some((e) => e.submission?.status === 'SUBMITTED')
-  ).length;
-  const completionRate = Math.round((evaluatedTeams / results.length) * 100);
+  if (resultsQuery.isPending) return <p className="program-results-message" role="status">평가 결과를 불러오는 중입니다…</p>;
+  if (resultsQuery.isError && !resultsQuery.data) return <div className="program-results-message" role="alert"><p>평가 결과를 불러오지 못했습니다.</p><Button onClick={() => resultsQuery.refetch()}>다시 시도</Button></div>;
+  if (!results.length) return <p className="program-results-message">등록된 팀이 없습니다. 지원 팀 탭에서 팀을 확인해주세요.</p>;
 
-  const allSubmitted = results.flatMap((r) =>
-    r.evaluations.filter((e) => e.submission?.status === 'SUBMITTED')
-  );
-  const avgScore = allSubmitted.length > 0
-    ? (allSubmitted.reduce((s, e) => s + Number(e.submission.totalScore), 0) / allSubmitted.length).toFixed(1)
-    : '—';
-
-  // 가산점을 쓰는 프로그램이면 심사위원 평균 / 가산점 / 총합을 나눠 보여준다.
-  const hasBonus = program?.bonusEnabled || results.some((r) => r.bonusScore != null);
-
-  // 순위 정렬 + 분포 집계 (총합 기준)
-  const ranked = rankedTeams(results);
-  const buckets = SCORE_BUCKETS.map((b) => ({
-    ...b,
-    count: ranked.filter((t) => t.final != null && t.final >= b.min && t.final < b.max).length,
-  }));
-  const maxBucket = Math.max(1, ...buckets.map((b) => b.count));
-
-  const filtered = filter === 'ALL' ? ranked : ranked.filter((r) => r.teamStatus === filter);
-
-  const exportOptions = [
-    {
-      title: '최종 결과 · 합격자만',
-      desc: 'PDF / Excel',
-      icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-      color: 'bg-green-50 text-green-600',
-      onClick: () => exportFinalExcel(programTitle, results),
-      onPdf: () => downloadPdf(true),
-    },
-    {
-      title: '전체팀 평가 정보',
-      desc: 'Excel',
-      icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
-      color: 'bg-blue-50 text-blue-600',
-      onClick: () => exportAllTeamsExcel(programTitle, results),
-    },
-    {
-      title: '팀 별 상세 정보',
-      desc: 'PDF · 심사위원 코멘트 포함',
-      icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z',
-      color: 'bg-purple-50 text-purple-600',
-      onClick: () => downloadPdf(),
-    },
-  ];
-
-  return (
-    <div>
-      {/* 통계 카드 */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        {[
-          { label: '제출 완료', value: `${completionRate}%`, sub: `${evaluatedTeams}/${results.length} 팀`, color: 'text-green-600' },
-          { label: '평균 점수', value: avgScore,             sub: '제출된 평가 기준',                       color: 'text-blue-600'  },
-          { label: '합격팀',   value: passedCount,          sub: `불합격 ${failedCount}팀`,                color: 'text-gray-900'  },
-          { label: '미정',     value: pendingCount,         sub: '판정 대기 중',                           color: 'text-gray-500'  },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 mb-1">{s.label}</p>
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{s.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-3 gap-6">
-        {/* 최종 순위 */}
-        <div className="col-span-2 bg-white rounded-xl border border-gray-200 overflow-hidden self-start">
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100">
-            <span className="text-sm font-semibold text-gray-700">최종 순위</span>
-            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{filtered.length}팀</span>
-            <div className="flex gap-1 ml-auto">
-              {FILTER_BUTTONS.map((btn) => {
-                const count =
-                  btn.key === 'ALL'     ? results.length :
-                  btn.key === 'PASSED'  ? passedCount :
-                  btn.key === 'FAILED'  ? failedCount :
-                  pendingCount;
-                return (
-                  <button
-                    key={btn.key}
-                    onClick={() => setFilter(btn.key)}
-                    className={`flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                      filter === btn.key ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'
-                    }`}
-                  >
-                    {btn.label}
-                    <span className={`text-[11px] px-1 rounded-full ${
-                      filter === btn.key ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'
-                    }`}>{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">순위</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">팀</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">심사위원별 점수</th>
-                {hasBonus ? (
-                  <>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">심사위원 평균</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">가산점</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">총합</th>
-                  </>
-                ) : (
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">최종</th>
-                )}
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">판정</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((team, index) => {
-                const statusInfo = RESULT_STATUS[team.teamStatus] ?? RESULT_STATUS.PENDING;
-                const submitted  = team.evaluations.filter((e) => e.submission?.status === 'SUBMITTED');
-                const rank = filter === 'ALL' ? index + 1 : ranked.findIndex((t) => t.teamId === team.teamId) + 1;
-
-                return (
-                  <tr
-                    key={team.teamId}
-                    onClick={() => navigate(`/admin/programs/${programId}/teams/${team.teamId}`)}
-                    className="hover:bg-gray-50 cursor-pointer"
-                  >
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md text-sm font-bold ${
-                        rank <= 3 ? 'bg-blue-50 text-blue-600' : 'text-gray-400'
-                      }`}>{rank}</span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="font-semibold text-gray-900 text-sm">{team.teamName}</div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-1.5 flex-wrap">
-                        {submitted.map((e) => (
-                          <span key={e.evaluatorId} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
-                            {e.submission.totalScore}
-                          </span>
-                        ))}
-                        {submitted.length === 0 && <span className="text-xs text-gray-400">—</span>}
-                      </div>
-                    </td>
-                    {hasBonus ? (
-                      <>
-                        <td className="px-4 py-4 text-sm font-medium text-gray-600">
-                          {team.avg != null ? team.avg.toFixed(1) : '—'}
-                        </td>
-                        <td className="px-4 py-4 text-sm font-medium text-purple-600">
-                          {team.bonusScore != null ? `+${team.bonus}` : '—'}
-                        </td>
-                        <td className="px-4 py-4 text-base font-bold text-blue-600">
-                          {team.final != null ? team.final.toFixed(1) : '—'}
-                        </td>
-                      </>
-                    ) : (
-                      <td className="px-4 py-4 text-base font-bold text-blue-600">
-                        {team.final != null ? team.final.toFixed(1) : '—'}
-                      </td>
-                    )}
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusInfo.dot}`} />
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusInfo.badge}`}>
-                          {statusInfo.label}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 우측: 점수 분포 + 내보내기 옵션 */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">점수 분포</h3>
-            <div className="flex items-end justify-between gap-2 h-28">
-              {buckets.map((b) => (
-                <div key={b.label} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
-                  <span className="text-xs font-medium text-gray-500">{b.count > 0 ? b.count : ''}</span>
-                  <div
-                    className="w-full bg-blue-500 rounded-t transition-all"
-                    style={{ height: `${(b.count / maxBucket) * 100}%`, minHeight: b.count > 0 ? '4px' : '0' }}
-                  />
-                  <span className="text-[11px] text-gray-400">{b.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 className="text-sm font-semibold text-gray-700 mb-1">내보내기 옵션</h3>
-            <p className="text-xs text-gray-400 mb-4">원하는 형식으로 결과를 저장하세요.</p>
-            {pdfPending && <p role="status" className="text-xs text-blue-600 mb-3">PDF를 준비하고 있습니다...</p>}
-            {pdfError && <p role="alert" className="text-xs text-red-600 mb-3">{pdfError}</p>}
-            <div className="space-y-2">
-              {exportOptions.map((opt) => (
-                <button
-                  key={opt.title}
-                  onClick={opt.onClick}
-                  disabled={pdfPending}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-colors text-left cursor-pointer group"
-                >
-                  <span className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${opt.color}`}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={opt.icon} />
-                    </svg>
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-sm font-medium text-gray-800">{opt.title}</span>
-                    <span className="block text-xs text-gray-400">{opt.desc}</span>
-                  </span>
-                  {opt.onPdf && (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); opt.onPdf(); }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); opt.onPdf(); } }}
-                      className="text-xs text-gray-400 hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50"
-                      title="PDF로 내보내기"
-                    >
-                      PDF
-                    </span>
-                  )}
-                  <svg className="w-4 h-4 text-gray-300 group-hover:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+  return <div className="program-results">
+    <div className="program-results-method-row">
+      <div className="program-results-method-control"><span>평균 산출 방식</span><div role="group" aria-label="평균 산출 방식">
+        {Object.entries(RESULT_METHODS).map(([key,label]) => <button key={key} type="button" aria-pressed={method === key} disabled={exportPending} onClick={() => updateParams({ resultMethod:key, resultPage:1 })}>{label}</button>)}
+      </div></div>
+      {calculable.length < ranked.length && <span className="program-results-provisional">잠정 순위 · 산출 불가 {ranked.length - calculable.length}팀</span>}
     </div>
-  );
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-2 mb-2">
+      {[{label:'심사 제출 완료',value:`${completed} / ${results.length}팀`},{label:'산출 가능',value:`${calculable.length}팀`},{label:'산출 불가',value:`${ranked.length-calculable.length}팀`},{label:'팀별 심사위원 평균',value:average}].map(item => <div key={item.label} className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">{item.label}</p><p className="text-2xl font-bold text-gray-900">{item.value}</p></div>)}
+    </div>
+    {resultsQuery.isError && <p role="alert" className="program-results-warning">최신 결과를 갱신하지 못했습니다. <Button onClick={() => resultsQuery.refetch()}>다시 시도</Button></p>}
+    <p className="program-results-feedback" role="status" aria-live="polite">{message}</p>
+    <div className="program-results-layout grid grid-cols-1 xl:grid-cols-3 gap-2">
+    <section className="program-results-ranking xl:col-span-2" aria-label="전체 팀 평가 비교">
+      <div className="program-results-ranking-heading"><span>최종 순위 <small>· {RESULT_METHODS[method]}</small></span>
+      <div className="program-results-filters" role="group" aria-label="최종 판정 필터">
+        {FILTERS.map(item => <Button key={item.key} variant="ghost" aria-pressed={filter === item.key}
+          onClick={() => updateParams({ resultFilter: item.key, resultPage: 1 })}>
+          {item.label} <span>{item.key === 'ALL' ? results.length : results.filter(team => team.teamStatus === item.key).length}</span>
+        </Button>)}
+      </div>
+      </div>
+      <TableScroll className="program-results-table-scroll">
+        <table className="program-results-table">
+          <thead><tr>
+            <th scope="col">순위</th><th scope="col">팀</th>
+            <th scope="col" className="is-number">심사위원 평균</th>
+            {legacyBonus && <th scope="col" className="is-number">가산점 합계</th>}
+            {bonusItems.map(item => <th key={item.itemId} scope="col" className="is-number">{item.name}{item.maxScore != null && <small> / {Number(item.maxScore)}점</small>}</th>)}
+            <th scope="col" className="is-number">총합</th><th scope="col">평가 결과</th>
+          </tr></thead>
+          <tbody>
+            {!pageTeams.length && <tr><td colSpan={5 + (hasBonus ? Math.max(1, bonusItems.length) : 0)} className="program-results-message">선택한 조건에 맞는 팀이 없습니다.</td></tr>}
+            {pageTeams.map(team => {
+              const status = RESULT_STATUS[team.teamStatus] ?? RESULT_STATUS.PENDING;
+              return <tr key={team.teamId} onClick={event => { event.currentTarget.querySelector('button')?.focus(); openTeam(team); }} className={selected?.teamId === team.teamId ? 'is-selected' : ''}>
+                <td className="program-results-rank">{team.rank ?? '—'}</td>
+                <td><button type="button" className="program-results-team-link" aria-haspopup="dialog" onClick={event => { event.stopPropagation(); openTeam(team); }}>{team.teamName}</button><span className="program-results-review-count">{team.submittedCount} / {team.assignedCount}명 제출</span></td>
+                <td className="is-number">{fmt(team.avg)}</td>
+                {legacyBonus && <td className="is-number">{fmt(team.bonusScore)}</td>}
+                {bonusItems.map(item => <td key={item.itemId} className="is-number">{fmt(team.bonusScores?.find(score => score.itemId === item.itemId)?.score)}</td>)}
+                <td className="is-number program-results-final">{team.final != null ? fmt(team.final) : <span className="program-results-unavailable">산출 불가<small>{team.unavailableReason}</small></span>}</td>
+                <td><span className={`program-result-status ${status.className}`}>{status.label}</span></td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </TableScroll>
+      <nav className="program-results-pagination" aria-label="평가 결과 페이지">
+        <span>{filtered.length ? `${offset + 1}–${Math.min(offset + pageSize, filtered.length)} / ${filtered.length}팀` : '0팀'}</span>
+        <div><Button variant="ghost" disabled={page === 1} onClick={() => updateParams({ resultPage: page - 1 })}>이전</Button><span aria-live="polite">{page} / {pageCount}</span><Button variant="ghost" disabled={page === pageCount} onClick={() => updateParams({ resultPage: page + 1 })}>다음</Button></div>
+      </nav>
+    </section>
+    <aside className="program-results-sidebar" aria-label="점수 분포와 내보내기">
+      <section className="program-results-distribution bg-white rounded-xl border border-gray-200 p-5" aria-labelledby="results-distribution-title">
+        <h3 id="results-distribution-title" className="text-sm font-semibold text-gray-700 mb-4">총합 점수 분포</h3>
+        <p className="program-results-method-rule">{RESULT_METHODS[method]} · 산출 가능 {calculable.length}팀 기준</p>
+        <div className="program-results-chart flex items-end justify-between gap-2 h-28" role="img" aria-label={buckets.map(bucket=>`${bucket.label}점 구간 ${bucket.count}팀`).join(', ')}>
+          {buckets.map(bucket => <div key={bucket.label} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end"><span className="text-xs text-gray-600">{bucket.count || ''}</span><div className="w-full bg-blue-500 rounded-t" style={{height:`${bucket.count/maxBucket*100}%`,minHeight:bucket.count ? '4px':'0'}}/><span className="text-xs text-gray-500">{bucket.label}</span></div>)}
+        </div>
+      </section>
+      <ProgramResultsExports method={method} pending={exportPending} error={exportError} onExport={exportFile}/>
+    </aside>
+    </div>
+    {selected && <EvaluationResultDialog key={selected.teamId} team={selected} method={method} hasBonus={hasBonus}
+      criteriaQuery={criteriaQuery} pending={statusMutation.isPending} nextTeam={nextTeam} message={message}
+      onClose={() => updateParams({ resultTeam: null })} onSave={saveVerdict} onOpenTeam={goToTeamInfo} />}
+  </div>;
 }

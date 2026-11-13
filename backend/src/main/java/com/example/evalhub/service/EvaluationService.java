@@ -405,8 +405,8 @@ public class EvaluationService {
             if (requestedScore.score() == null
                     || requestedScore.score().compareTo(BigDecimal.ZERO) < 0
                     || requestedScore.score().compareTo(criteriaById.get(requestedScore.criterionId()).getMaxScore()) > 0
-                    || requestedScore.score().stripTrailingZeros().scale() > 2) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "점수는 0 이상 항목 배점 이하이며 소수 둘째 자리까지만 입력할 수 있습니다.");
+                    || requestedScore.score().stripTrailingZeros().scale() > 1) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "점수는 0 이상 항목 배점 이하이며 소수 첫째 자리까지만 입력할 수 있습니다.");
             }
         }
 

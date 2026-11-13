@@ -1,0 +1,118 @@
+@font-face {
+  font-family: '평가On Noto Sans KR';
+  src: url('/fonts/noto-sans-kr/NotoSansKR-Variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: '평가On Noto Sans KR', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', system-ui, sans-serif;
+  --font-weight-bold: 600;
+}
+
+:root {
+  --ui-font: var(--font-sans);
+  --ui-title-tracking: 0.015em;
+  --ui-canvas: var(--color-gray-50);
+  --ui-surface: white;
+  --ui-text: var(--color-gray-900);
+  --ui-muted: var(--color-gray-600);
+  --ui-border: var(--color-gray-200);
+  --ui-primary: var(--color-blue-600);
+  --ui-primary-hover: var(--color-blue-700);
+  --ui-radius-control: 0.5rem;
+  --ui-radius-card: 0.75rem;
+  --ui-space-inline: 1.5rem;
+  --ui-space-section: 1.25rem;
+  --ui-space-card-gap: 0.5rem;
+}
+
+@layer base {
+  body {
+    font-family: var(--ui-font);
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--ui-text);
+    background: var(--ui-canvas);
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    font-synthesis: none;
+  }
+  button, input, select, textarea { font-family: inherit; }
+  h1, h2, h3 { font-weight: 600; letter-spacing: var(--ui-title-tracking); text-wrap: balance; }
+  h1 { font-size: 1.75rem; line-height: 1.3; }
+  h2 { font-size: 1.25rem; line-height: 1.4; }
+  h3 { font-size: 1.125rem; line-height: 1.45; }
+  p { text-wrap: pretty; }
+  ::selection { background: var(--color-blue-100); color: var(--color-blue-900); }
+  input, textarea { caret-color: var(--ui-primary); }
+  :focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
+  :disabled { cursor: not-allowed; }
+}
+
+@layer components {
+  .ui-page {
+    width: 100%; max-width: 90rem; margin-inline: auto;
+    padding: var(--ui-space-section) var(--ui-space-inline) 2rem;
+    min-width: 0;
+  }
+  .ui-page--narrow { max-width: 56rem; }
+  .ui-page--wide { max-width: none; }
+  .ui-card { background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-card); padding: 1.25rem; min-width: 0; }
+  .ui-button {
+    min-height: 2.75rem; padding: 0.5rem 1rem;
+    border: 1px solid var(--ui-border); border-radius: var(--ui-radius-control);
+    background: white; color: var(--ui-muted);
+    font-size: 0.875rem; line-height: 1.5; font-weight: 500;
+    cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms;
+  }
+  .ui-button:hover { background: var(--color-gray-50); }
+  .ui-button--primary { color: white; background: var(--ui-primary); border-color: transparent; }
+  .ui-button--primary:hover { background: var(--ui-primary-hover); }
+  .ui-button--danger { color: white; background: var(--color-red-600); border-color: transparent; }
+  .ui-button--danger:hover { background: var(--color-red-700); }
+  .ui-button--ghost { background: transparent; border-color: transparent; }
+  .ui-button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ui-input {
+    min-width: 0; min-height: 2.75rem; width: 100%; padding: 0.625rem 0.875rem;
+    border: 1px solid var(--ui-border); border-radius: var(--ui-radius-control);
+    background: white; color: var(--ui-text); font-size: 1rem; line-height: 1.55;
+    transition: border-color 150ms, box-shadow 150ms;
+  }
+  .ui-input::placeholder { color: var(--color-gray-500); }
+  .ui-input:focus { border-color: var(--ui-primary); outline: 2px solid var(--ui-primary); outline-offset: 1px; }
+  .ui-input:disabled { background: var(--ui-canvas); color: var(--ui-muted); }
+  .ui-input[aria-invalid='true'] { border-color: var(--color-red-600); }
+  .ui-table-scroll { min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+  .ui-table-scroll table { width: 100%; }
+  .ui-tabs { display: flex; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .ui-tabs > button, .ui-tabs > a { flex: none; min-height: 2.75rem; white-space: nowrap; }
+}
+
+/* Shared roles win over older page-local utility defaults without touching state colors. */
+.ui-page { padding: var(--ui-space-section) var(--ui-space-inline) 2rem; }
+.ui-page-title { font-size: 1.75rem; font-weight: 600; line-height: 1.3; letter-spacing: var(--ui-title-tracking); }
+.ui-page-description { max-width: 65ch; margin-top: 0.5rem; font-size: 1rem; line-height: 1.65; color: var(--ui-muted); }
+.ui-breadcrumb { font-size: 0.875rem; line-height: 1.5; color: var(--color-gray-500); }
+.ui-page-header { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem; margin-bottom: var(--ui-space-card-gap); }
+.ui-page-header > div:first-child { min-width: 0; flex: 1 1 22rem; }
+.ui-page-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; max-width: 100%; }
+.font-bold, .font-semibold { letter-spacing: var(--ui-title-tracking); }
+.ui-input:not([type='checkbox']):not([type='radio']) { font-size: 1rem; }
+.ui-date-control { min-height: 2.75rem; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.ui-tabs { overflow-y: hidden; }
+.ui-table-scroll { scrollbar-width: thin; scrollbar-color: var(--color-gray-300) transparent; }
+.ui-table-scroll td, .ui-table-scroll th { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 47.999rem) {
+  :root { --ui-space-inline: 1rem; --ui-space-section: 1rem; }
+  .ui-card, .ui-page-header { padding: 1rem; }
+  .ui-page-header-actions { width: 100%; }
+  .ui-page-header-actions > div { flex-wrap: wrap; max-width: 100%; }
+  .ui-page-header-actions > button { min-height: 2.75rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-button, .ui-input { transition: none; }
+}

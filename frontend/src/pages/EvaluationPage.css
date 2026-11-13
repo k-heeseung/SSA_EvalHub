@@ -1,0 +1,7 @@
+.evaluation-file-tabs { padding-block: 4px; }
+.evaluation-file-tabs > button { min-height: 32px; padding-block: 4px; border-radius: 6px; }
+.evaluation-pdf-viewer .pdf-viewer-toolbar { padding-block: 4px; gap: 4px; }
+.evaluation-pdf-viewer .pdf-viewer-toolbar button,
+.evaluation-pdf-viewer .pdf-viewer-toolbar a { min-height: 32px; min-width: 32px; padding: 4px 6px; }
+.evaluation-pdf-viewer .pdf-viewer-toolbar input { min-height: 32px; height: 32px; width: 40px; font-size: 14px; }
+.evaluation-pdf-viewer .pdf-viewer-toolbar button[aria-pressed] { padding-inline: 10px; font-size: 13px; }

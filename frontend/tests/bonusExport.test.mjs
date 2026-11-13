@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
-import { teamBonus, teamFinalScore, exportAllTeamsExcel, exportFinalExcel } from '../src/utils/export.js';
+import { teamBonus, exportAllTeamsExcel, exportFinalExcel } from '../src/utils/export.js';
+
+import { calculateResult } from '../src/utils/resultScoring.js';
 
 const result = {
   teamId: 1, teamName: '<A팀>', teamStatus: 'PASSED', bonusScore: 5,
@@ -16,13 +18,14 @@ const result = {
     { evaluatorId: 3, evaluatorName: '심사 3', submission: { status: 'DRAFT', totalScore: 10 } },
   ],
 };
-test('final score adds the item total once to submitted evaluator average', () => {
+test('final score requires every assigned evaluation to be submitted', () => {
   assert.equal(teamBonus(result), 5);
-  assert.equal(teamFinalScore(result), 90);
-  assert.equal(teamFinalScore({ ...result, evaluations: [], bonusScore: null, bonusScores: [{ score: null }] }), null);
-  assert.equal(teamFinalScore({ ...result, evaluations: [], bonusScore: null, bonusScores: [{ score: 0 }] }), 0);
+  assert.equal(calculateResult(result, 'ALL').final, null);
+  const completed = { ...result, evaluations: result.evaluations.slice(0, 2) };
+  assert.equal(calculateResult(completed, 'ALL').final, 90);
+  assert.equal(calculateResult({ ...completed, bonusScore: 0, bonusScores: [{ score: 0 }] }, 'ALL').final, 85);
 });
-test('Excel files contain every bonus item, blank missing scores, and the correct total', async () => {
+test('Excel files contain every bonus item, blank missing scores, and suppress totals for incomplete evaluations', async () => {
   const blobs = [];
   const previousDocument = globalThis.document;
   const previousCreate = URL.createObjectURL;
@@ -43,7 +46,7 @@ test('Excel files contain every bonus item, blank missing scores, and the correc
         assert.equal(row.getCell(header.indexOf(name)).value, value);
       }
       const scoreColumn = header.indexOf('총합') > 0 ? header.indexOf('총합') : header.indexOf('최종 점수');
-      assert.equal(row.getCell(scoreColumn).value, 90);
+      assert.equal(row.getCell(scoreColumn).value, '');
     }
   } finally {
     globalThis.document = previousDocument;

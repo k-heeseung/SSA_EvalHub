@@ -21,7 +21,7 @@ function RequiredTag() {
 }
 
 function FieldCard({ children }) {
-  return <div className="bg-white rounded-xl border border-gray-200 p-6">{children}</div>;
+  return <div className="ui-card">{children}</div>;
 }
 
 function RequiredFieldsModal({ fields, onClose }) {
@@ -60,7 +60,7 @@ function RequiredFieldsModal({ fields, onClose }) {
           type="button"
           autoFocus
           onClick={onClose}
-          className="mt-5 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 cursor-pointer"
+          className="ui-button ui-button--primary mt-5 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 cursor-pointer"
         >
           확인
         </button>
@@ -70,10 +70,10 @@ function RequiredFieldsModal({ fields, onClose }) {
 }
 
 const INPUT_CLASS =
-  'w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow';
+  'ui-input w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow';
 
 const MEMBER_INPUT_CLASS =
-  'flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-shadow';
+  'ui-input flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-blue-500 outline-none transition-shadow';
 
 function LabeledInput({ label, value, onChange, placeholder, type = 'text', disabled = false }) {
   return (
@@ -164,8 +164,8 @@ export default function ApplicantFormPage() {
     hydrateForm(app);
   }, [app, applicationId]);
 
-  if (loading) return <div className="max-w-4xl mx-auto px-6 py-16 text-center text-gray-400">로딩 중...</div>;
-  if ((error || applicationQuery.isError) && !app) return <div className="max-w-4xl mx-auto px-6 py-16 text-center text-red-500">{error || '지원서를 불러오지 못했습니다.'}</div>;
+  if (loading) return <div className="ui-page ui-page--narrow text-center text-gray-500">로딩 중...</div>;
+  if ((error || applicationQuery.isError) && !app) return <div className="ui-page ui-page--narrow text-center text-red-500">{error || '지원서를 불러오지 못했습니다.'}</div>;
   if (!app) return null;
 
   const textFields = app.fields.filter((f) => !isFileField(f.fieldType));
@@ -330,7 +330,7 @@ export default function ApplicantFormPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="ui-page ui-page--narrow">
       {/* 프로그램 헤더 */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-6 mb-3">
         <div className="flex items-center gap-4">
@@ -340,7 +340,7 @@ export default function ApplicantFormPage() {
             </svg>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{app.programTitle}</h1>
+            <h1 className="ui-page-title font-bold text-gray-900">{app.programTitle}</h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {writeBlocked
                 ? period.label
@@ -354,7 +354,7 @@ export default function ApplicantFormPage() {
 
       {/* 마감은 팝업에서만 안내한다. */}
       {!deadlineNotice && (
-      <div className={`flex items-center gap-2 rounded-lg border px-4 py-3 mb-5 text-sm ${
+      <div className={`flex items-center gap-2 rounded-lg border px-4 py-3 mb-2 text-sm ${
         writeBlocked ? 'bg-red-50 border-red-100 text-red-600' : 'bg-white border-gray-200 text-gray-500'
       }`}>
         <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -367,7 +367,7 @@ export default function ApplicantFormPage() {
       )}
 
       {/* 진행률 */}
-      <div className="mb-6">
+      <div className="mb-2">
         <div className="flex items-center justify-between text-sm mb-1.5">
           <span className="text-gray-500">작성 진행률</span>
           <span className="text-gray-600 font-medium">{filledFields} / {totalFields}</span>
@@ -391,7 +391,7 @@ export default function ApplicantFormPage() {
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-2">팀원 정보</label>
                 {/* 팀장(본인). 팀장의 연락처가 팀 대표 연락처가 된다. */}
-                <div className="flex items-center gap-2 mb-2">
+                <div className="grid grid-cols-1 sm:grid-cols-[auto_repeat(3,minmax(0,1fr))_auto] items-center gap-2 mb-3">
                   <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded flex-shrink-0 whitespace-nowrap">팀장·본인</span>
                   <input value={pName} onChange={(e) => setPName(e.target.value)} placeholder="이름" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
                   <input value={pEmail} onChange={(e) => setPEmail(e.target.value)} placeholder="이메일" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
@@ -400,19 +400,19 @@ export default function ApplicantFormPage() {
                 </div>
                 {/* 추가 팀원 */}
                 {members.map((m, i) => (
-                  <div key={i} className="flex items-center gap-2 mb-2">
-                    <span className="text-xs text-gray-400 px-2 py-1 flex-shrink-0 whitespace-nowrap">팀원 {i + 1}</span>
+                  <div key={i} className="grid grid-cols-1 sm:grid-cols-[auto_repeat(3,minmax(0,1fr))_auto] items-center gap-2 mb-3">
+                    <span className="text-xs text-gray-500 px-2 py-1 flex-shrink-0 whitespace-nowrap">팀원 {i + 1}</span>
                     <input value={m.name} onChange={(e) => updateMember(i, 'name', e.target.value)} placeholder="이름" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
                     <input value={m.email} onChange={(e) => updateMember(i, 'email', e.target.value)} placeholder="이메일" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
                     <input value={m.phone} onChange={(e) => updateMember(i, 'phone', e.target.value)} placeholder="010-0000-0000" disabled={writeBlocked} className={`${MEMBER_INPUT_CLASS} disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-default`} />
-                    <button onClick={() => removeMember(i)} disabled={writeBlocked} className="w-6 flex-shrink-0 text-gray-300 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:text-gray-300">
+                    <button onClick={() => removeMember(i)} disabled={writeBlocked} className="ui-button ui-button--ghost w-11 min-w-11 flex-shrink-0 text-gray-300 hover:text-red-500 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:text-gray-300">
                       <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
                   </div>
                 ))}
-                <button onClick={addMember} disabled={writeBlocked} className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors mt-1 disabled:opacity-40 disabled:cursor-default">
+                <button onClick={addMember} disabled={writeBlocked} className="ui-button ui-button--ghost flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium cursor-pointer transition-colors mt-1 disabled:opacity-40 disabled:cursor-default">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
@@ -456,7 +456,7 @@ export default function ApplicantFormPage() {
           <FieldCard>
             <div className="flex items-center gap-2 mb-4">
               <h3 className="font-semibold text-gray-800">첨부파일 (PDF)</h3>
-              <span className="text-xs text-gray-400">최대 {maxAttachments}개 · 파일당 20MB</span>
+              <span className="text-xs text-gray-500">최대 {maxAttachments}개 · 파일당 20MB</span>
             </div>
 
             {attachments.map((att) => (
@@ -468,7 +468,7 @@ export default function ApplicantFormPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-800 truncate">{att.originalFilename}</div>
-                  <div className="text-xs text-gray-400">{formatFileSize(att.fileSize)} · 업로드 완료</div>
+                  <div className="text-xs text-gray-500">{formatFileSize(att.fileSize)} · 업로드 완료</div>
                 </div>
                 <span className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-green-50 text-green-600">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -476,7 +476,7 @@ export default function ApplicantFormPage() {
                   </svg>
                   완료
                 </span>
-                <button onClick={() => handleDeleteAttachment(att.id)} disabled={writeBlocked || uploading || deleteAttachmentMutation.isPending} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer p-1 disabled:opacity-40 disabled:cursor-default disabled:hover:text-gray-400">
+                <button onClick={() => handleDeleteAttachment(att.id)} disabled={writeBlocked || uploading || deleteAttachmentMutation.isPending} className="ui-button ui-button--ghost text-gray-500 hover:text-red-500 transition-colors cursor-pointer p-1 disabled:opacity-40 disabled:cursor-default disabled:hover:text-gray-500">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
@@ -485,24 +485,24 @@ export default function ApplicantFormPage() {
             ))}
 
             {writeBlocked ? (
-              !deadlineNotice && <p className="text-xs text-gray-400 text-center py-2">{period.blockedMessage}</p>
+              !deadlineNotice && <p className="text-xs text-gray-500 text-center py-2">{period.blockedMessage}</p>
             ) : canUploadMore ? (
               <button
                 onClick={() => { const blocked = uploadBlocked(); if (blocked) { setError(blocked); return; } fileInputRef.current?.click(); }}
                 disabled={writeBlocked || uploading || saving || submitting}
-                className="w-full py-3 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-60"
+                className="ui-button w-full py-3 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer disabled:opacity-60"
               >
                 {uploading ? '업로드 중...' : '+ PDF 업로드'}
               </button>
             ) : (
-              <p className="text-xs text-gray-400 text-center py-2">최대 개수까지 첨부했습니다.</p>
+              <p className="text-xs text-gray-500 text-center py-2">최대 개수까지 첨부했습니다.</p>
             )}
             <input ref={fileInputRef} type="file" accept="application/pdf" multiple onChange={handleUpload} className="hidden" />
           </FieldCard>
         )}
 
         {textFields.length === 0 && !attachmentsEnabled && (
-          <div className="bg-white rounded-xl border border-gray-200 py-10 text-center text-gray-400 text-sm">
+          <div className="bg-white rounded-xl border border-gray-200 py-10 text-center text-gray-500 text-sm">
             추가로 제출할 항목이 없습니다. 기본 정보를 확인한 후 지원해주세요.
           </div>
         )}
@@ -515,15 +515,15 @@ export default function ApplicantFormPage() {
 
       {/* 하단 액션 */}
       {writeBlocked ? (
-        !deadlineNotice && <div className="mt-6 text-center py-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-600">
+        !deadlineNotice && <div className="mt-2 text-center py-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-600">
           {period.blockedMessage}
         </div>
       ) : (
-        <div className="flex items-center justify-between mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
           <button
             onClick={handleSaveDraft}
             disabled={writeBlocked || saving || submitting || uploading}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60"
+            className="ui-button flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -533,7 +533,7 @@ export default function ApplicantFormPage() {
           <button
             onClick={handleSubmit}
             disabled={writeBlocked || saving || submitting || uploading}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-60"
+            className="ui-button ui-button--primary flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-60"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

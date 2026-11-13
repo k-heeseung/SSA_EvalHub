@@ -63,8 +63,8 @@ export default function ApplicantSubmittedPage() {
     }
   };
 
-  if (loading) return <div className="max-w-3xl mx-auto px-6 py-16 text-center text-gray-400">로딩 중...</div>;
-  if (displayError && !app) return <div className="max-w-3xl mx-auto px-6 py-16 text-center text-red-500">{displayError}</div>;
+  if (loading) return <div className="ui-page ui-page--narrow text-center text-gray-500">로딩 중...</div>;
+  if (displayError && !app) return <div className="ui-page ui-page--narrow text-center text-red-500">{displayError}</div>;
   if (!app) return null;
 
   const deadline = formatScheduleTime(scheduleInstant(app, 'applicationDeadline'));
@@ -77,21 +77,21 @@ export default function ApplicantSubmittedPage() {
   const answerFields = app.fields.filter((f) => !isFileField(f.fieldType));
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className="ui-page ui-page--narrow">
       {displayError && <p role="alert" className="text-sm text-red-600 mb-4">{displayError}</p>}
       <p className="text-sm text-gray-500 mb-3" aria-live="polite">지원 기간 {formatProgramPeriod(app, 'application')} · {period.label}</p>
       {/* 제출 완료 카드 */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-5">
-        <div className="flex items-start gap-4">
+      <div className="ui-card mb-2">
+        <div className="grid grid-cols-[3rem_minmax(0,1fr)] sm:grid-cols-[3rem_minmax(0,1fr)_auto] items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center text-green-500 flex-shrink-0">
             <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-gray-900">제출 완료</h1>
-              <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-600">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="ui-page-title font-bold text-gray-900 whitespace-nowrap">제출 완료</h1>
+              <span className="flex shrink-0 whitespace-nowrap items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-600">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                 접수됨
               </span>
@@ -103,18 +103,18 @@ export default function ApplicantSubmittedPage() {
                 : <> 마감({deadline})까지 수정할 수 있습니다.</>)}
             </p>
           </div>
-          <div className="text-right flex-shrink-0">
-            <div className="text-xs text-gray-400">제출 일시</div>
-            <div className="text-sm font-mono text-gray-700 mt-0.5">{formatDateTime(app.submittedAt)}</div>
+          <div className="col-start-2 sm:col-start-auto text-left sm:text-right">
+            <div className="text-xs text-gray-500">제출 일시</div>
+            <div className="text-sm tabular-nums text-gray-700 mt-0.5">{formatDateTime(app.submittedAt)}</div>
           </div>
         </div>
 
-        <div className="flex items-center justify-between mt-5 pt-5 border-t border-gray-100">
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-5 pt-5 border-t border-gray-100">
           <button
             onClick={() => { const blocked = currentPeriodFor().blockedMessage; if (blocked) { setError(blocked); return; } navigate(`/applicant/apply/${applicationId}`); }}
             disabled={writeBlocked}
             title={period.blockedMessage || undefined}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:bg-white"
+            className="ui-button flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:bg-white"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -125,7 +125,7 @@ export default function ApplicantSubmittedPage() {
             onClick={handleCancel}
             disabled={cancelling || checkingCancel || evaluationStarted}
             title={evaluationStarted ? '평가가 시작되어 온라인으로 취소할 수 없습니다. 담당자에게 문의해주세요.' : undefined}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-200 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:bg-white"
+            className="ui-button flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-200 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:bg-white"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -134,14 +134,14 @@ export default function ApplicantSubmittedPage() {
           </button>
         </div>
         {evaluationStarted && (
-          <p className="text-xs text-gray-400 text-right mt-2">
+          <p className="text-xs text-gray-500 text-right mt-2">
             평가가 시작되어 온라인 취소가 불가능합니다. 취소가 필요하면 담당자에게 문의해주세요.
           </p>
         )}
       </div>
 
       {/* 제출한 지원서 */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+      <div className="ui-card space-y-6">
         <div className="flex items-center justify-between pb-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold text-gray-800">제출한 지원서</h2>
@@ -149,7 +149,7 @@ export default function ApplicantSubmittedPage() {
               {isTeam ? '팀 지원' : '개인 지원'}
             </span>
           </div>
-          <span className="text-sm text-gray-400 font-mono">#{app.applicationId}</span>
+          <span className="text-sm text-gray-500 tabular-nums">#{app.applicationId}</span>
         </div>
 
         {/* 지원 정보 (본인/팀 정보) */}
@@ -158,7 +158,7 @@ export default function ApplicantSubmittedPage() {
           {isTeam ? (
             <>
               <div className="mb-4">
-                <div className="text-xs text-gray-400 mb-1">팀 이름</div>
+                <div className="text-xs text-gray-500 mb-1">팀 이름</div>
                 <div className="text-sm text-gray-800">{app.teamName || '—'}</div>
               </div>
               <TeamMemberList
@@ -169,17 +169,17 @@ export default function ApplicantSubmittedPage() {
               />
             </>
           ) : (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <div className="text-xs text-gray-400 mb-1">이름</div>
+                <div className="text-xs text-gray-500 mb-1">이름</div>
                 <div className="text-sm text-gray-800 break-all">{info.name || '—'}</div>
               </div>
               <div>
-                <div className="text-xs text-gray-400 mb-1">이메일</div>
+                <div className="text-xs text-gray-500 mb-1">이메일</div>
                 <div className="text-sm text-gray-800 break-all">{info.email || '—'}</div>
               </div>
               <div>
-                <div className="text-xs text-gray-400 mb-1">연락처</div>
+                <div className="text-xs text-gray-500 mb-1">연락처</div>
                 <div className="text-sm text-gray-800 break-all">{formatPhone(info.phone) || '—'}</div>
               </div>
             </div>
@@ -232,9 +232,9 @@ export default function ApplicantSubmittedPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-gray-800 truncate group-hover:text-blue-700">{att.originalFilename}</div>
-                      <div className="text-xs text-gray-400">{formatFileSize(att.fileSize)}</div>
+                      <div className="text-xs text-gray-500">{formatFileSize(att.fileSize)}</div>
                     </div>
-                    <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
                   </a>

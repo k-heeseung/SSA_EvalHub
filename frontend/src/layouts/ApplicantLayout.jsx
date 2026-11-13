@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { logout } from '../api/auth';
 import useCurrentUser from '../query/useCurrentUser';
+import './RoleLayouts.css';
 
 const SettingsIcon = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
 
 export default function ApplicantLayout() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const queryClient = useQueryClient();
   const { data: user = {} } = useCurrentUser();
   const logoutMutation = useMutation({ mutationFn: logout, meta: { skipInvalidation: true } });
@@ -39,14 +41,25 @@ export default function ApplicantLayout() {
   const initials = userName.charAt(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const accountTrigger = useRef(null);
 
   useEffect(() => {
     if (!menuOpen) return;
     const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
     };
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+        accountTrigger.current?.focus();
+      }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, [menuOpen]);
 
   const handleLogout = async () => {
@@ -59,21 +72,21 @@ export default function ApplicantLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="applicant-shell min-h-screen bg-gray-50 flex flex-col">
       {/* 상단 네비게이션 바 */}
       <header className="bg-white border-b border-gray-100 flex-shrink-0">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+        <div className="applicant-header-inner max-w-6xl mx-auto px-6 flex items-center justify-between">
           {/* 로고 + 메뉴 */}
-          <div className="flex items-center gap-8">
+          <div className="applicant-brand-navigation flex items-center gap-8">
             <div className="flex items-center gap-2.5">
               <img src="/logo.png" alt="성균관대학교" className="w-8 h-8 object-contain flex-shrink-0" />
               <div className="leading-tight">
-                <div className="text-sm font-bold text-gray-900">EVALHUB</div>
-                <div className="text-[11px] text-gray-400">지원자 포털</div>
+                <div className="text-sm font-bold text-gray-900">평가ON</div>
+                <div className="text-[11px] text-gray-500">지원자 포털</div>
               </div>
             </div>
 
-            <nav className="flex items-center gap-1">
+            <nav aria-label="지원자 메뉴" className="applicant-navigation flex items-center gap-1">
               {NAV_ITEMS.map((item) => (
                 <NavLink
                   key={item.to}
@@ -81,7 +94,7 @@ export default function ApplicantLayout() {
                   end={item.end}
                   className={({ isActive }) =>
                     `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
+                      (isActive || (item.to === '/applicant' && pathname.startsWith('/applicant/programs/')))
                         ? 'bg-blue-50 text-blue-700'
                         : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                     }`
@@ -94,31 +107,35 @@ export default function ApplicantLayout() {
           </div>
 
           {/* 사용자 */}
-          <div className="flex items-center gap-3">
+          <div className="applicant-account flex items-center gap-3">
             <div className="relative" ref={menuRef}>
               <button
-                onClick={() => setMenuOpen((v) => !v)}
+                ref={accountTrigger}
+              aria-expanded={menuOpen}
+              aria-controls="applicant-account-actions"
+              aria-label="계정 메뉴"
+              onClick={() => setMenuOpen((v) => !v)}
                 className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm flex-shrink-0">
                   {initials}
                 </div>
-                <span className="text-sm font-medium text-gray-800">{userName}</span>
+                <span className="applicant-user-name text-sm font-medium text-gray-800" title={userName}>{userName}</span>
                 {/* 닫힘=∨(아래), 열림=∧(위) */}
-                <ChevronIcon className={`text-gray-400 flex-shrink-0 ${menuOpen ? 'rotate-180' : ''}`} />
+                <ChevronIcon className={`text-gray-500 flex-shrink-0 ${menuOpen ? 'rotate-180' : ''}`} />
               </button>
               {menuOpen && (
-                <div className="absolute top-full right-0 mt-2 w-36 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-20">
+                <div id="applicant-account-actions" className="role-account-actions absolute top-full right-0 mt-2 w-36 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-20">
                   <button
                     onClick={() => { setMenuOpen(false); navigate('/applicant/settings'); }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                    className="role-account-action flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
                   >
                     <SettingsIcon />
                     설정
                   </button>
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-50 cursor-pointer"
+                    className="role-account-action flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-50 cursor-pointer"
                   >
                     <LogoutIcon />
                     로그아웃
@@ -130,7 +147,7 @@ export default function ApplicantLayout() {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main className="applicant-main flex-1">
         <Outlet />
       </main>
     </div>

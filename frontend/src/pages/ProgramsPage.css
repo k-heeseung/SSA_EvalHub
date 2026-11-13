@@ -1,0 +1,312 @@
+/* The approved typography is provided by the shared UI system. */
+/* Page-local type roles preserve the shared header and other role portals. */
+.app-admin-shell .admin-page-content:has(> .programs-page) {
+  scrollbar-gutter: stable;
+}
+
+.programs-page {
+  --programs-space-inline: 1.5rem;
+  --programs-space-section: 1.25rem;
+  --programs-space-group: 1rem;
+  width: 100%;
+  max-width: 90rem;
+  margin-inline: auto;
+  padding: var(--programs-space-section) var(--programs-space-inline) 2rem;
+  --programs-type-page: 1.75rem;
+  --programs-type-title: 1.25rem;
+  --programs-type-body: 1rem;
+  --programs-type-meta: 0.875rem;
+  font-family: var(--ui-font);
+  font-size: var(--programs-type-body);
+  line-height: 1.65;
+  font-synthesis: none;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.programs-page p {
+  text-wrap: pretty;
+}
+
+.programs-page button {
+  font-size: var(--programs-type-meta);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.programs-header {
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 1.25rem;
+  margin-bottom: var(--ui-space-card-gap);
+  gap: var(--programs-space-group);
+}
+
+.programs-header > div:first-child {
+  flex: 1 1 24rem;
+}
+
+.programs-header > div:last-child {
+  max-width: 100%;
+}
+
+.programs-header-actions {
+  flex-wrap: wrap;
+}
+
+.programs-header-actions > button,
+.programs-header-actions > div > button {
+  min-height: 2.75rem;
+}
+
+.programs-header h1 {
+  font-size: var(--programs-type-page);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: var(--ui-title-tracking);
+  text-wrap: balance;
+}
+
+.programs-header h1 + p {
+  max-width: 65ch;
+  margin-top: 0.5rem;
+  font-size: var(--programs-type-body);
+  line-height: 1.65;
+  color: var(--color-gray-600);
+}
+
+.programs-header > div:first-child > div:first-child {
+  color: var(--color-gray-500);
+  line-height: 1.5;
+}
+
+.programs-card-title {
+  font-size: var(--programs-type-title);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: var(--ui-title-tracking);
+  text-wrap: balance;
+}
+
+.programs-card {
+  container-type: inline-size;
+  position: relative;
+  overflow: visible;
+}
+
+.programs-card:focus-within {
+  z-index: 20;
+}
+
+.programs-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 23rem), 1fr));
+  gap: var(--ui-space-card-gap);
+  align-items: start;
+}
+
+.programs-card-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 1.25rem;
+}
+
+.programs-card-heading {
+  gap: 0.5rem;
+  margin-bottom: var(--programs-space-group);
+}
+
+.programs-card-heading button[aria-expanded] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+.programs-periods {
+  margin-bottom: var(--programs-space-group);
+}
+
+.programs-card-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--programs-space-group);
+  margin-top: auto;
+  margin-bottom: 0.75rem;
+}
+
+.programs-card-metrics {
+  margin-bottom: 0;
+}
+
+.programs-manage-button {
+  min-height: 2.75rem;
+}
+
+.programs-status-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gray-300) transparent;
+  margin-bottom: 0;
+  padding-bottom: 0.25rem;
+}
+
+.programs-status-tabs button {
+  flex: none;
+  min-height: 2.75rem;
+  padding-inline: 0.75rem;
+}
+
+.programs-results-toolbar {
+  min-height: 2.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: var(--ui-space-card-gap);
+}
+
+.programs-results-toolbar button {
+  min-height: 2.75rem;
+}
+
+.programs-filter-popover {
+  width: min(20rem, calc(100vw - 4rem));
+  max-height: min(36rem, 65dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.programs-filter-popover button,
+.programs-card [data-popover] button,
+.programs-delete-dialog button {
+  min-height: 2.75rem;
+}
+
+.programs-delete-dialog {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+
+@media (max-width: 47.999rem) {
+  .programs-page {
+    --programs-space-inline: 1rem;
+    --programs-space-section: 1rem;
+  }
+
+  .programs-header {
+    padding: 1rem;
+    align-items: stretch;
+  }
+
+  .programs-header > div:last-child {
+    width: 100%;
+  }
+
+  .programs-header-actions {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .programs-header-actions > button {
+    flex: 1;
+  }
+
+  .programs-filter-popover {
+    left: 0;
+    right: auto;
+  }
+
+  .programs-card-body {
+    padding: 1rem;
+  }
+}
+
+@container (max-width: 18rem) {
+  .programs-card-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Dates need readable lines even when the sidebar narrows the content column. */
+@container (max-width: 26rem) {
+  .programs-periods {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.programs-label,
+.programs-metadata,
+.programs-page #programs-results-summary {
+  font-size: var(--programs-type-meta);
+  line-height: 1.55;
+}
+
+.programs-label {
+  font-weight: 500;
+}
+
+.programs-metadata {
+  font-weight: 400;
+}
+
+.programs-period {
+  font-size: var(--programs-type-body);
+  font-weight: 400;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.programs-metric {
+  font-size: var(--programs-type-title);
+  font-weight: 600;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.programs-page [aria-label='프로그램 상태'] button {
+  white-space: nowrap;
+}
+
+.programs-page [aria-label='프로그램 상태'] button span {
+  font-variant-numeric: tabular-nums;
+}
+
+.programs-page > [role='alert'] > p,
+.programs-delete-dialog > p:not([role='status']):not(.sr-only) {
+  font-size: var(--programs-type-body);
+  line-height: 1.65;
+}
+
+.programs-delete-dialog h2 {
+  font-size: var(--programs-type-title);
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: var(--ui-title-tracking);
+  text-wrap: balance;
+}
+
+.programs-page > .text-center {
+  color: var(--color-gray-600);
+}
+
+.programs-page > .text-center > p {
+  color: var(--color-gray-600);
+  font-size: var(--programs-type-body);
+  line-height: 1.625;
+}
+
+.programs-page > .text-center > .programs-empty-title {
+  font-size: var(--programs-type-title);
+  line-height: 1.4;
+}
+
+/* Status controls and the list read as one surface. */
+.programs-workspace { min-width:0; border:1px solid var(--ui-border); border-radius:12px; background:var(--ui-surface); }
+.programs-workspace > .programs-status-tabs { margin:0; padding:0 12px; border-radius:12px 12px 0 0; border-bottom:1px solid var(--ui-border); background:var(--ui-surface); }
+.programs-workspace > .programs-status-tabs button { border:0; border-bottom:2px solid transparent; border-radius:0; margin:0; background:transparent; }
+.programs-workspace > .programs-status-tabs button[aria-pressed="true"] { border-bottom-color:var(--color-blue-600); color:var(--color-blue-700); }
+.programs-workspace-content { padding:12px; background:var(--color-gray-50); border-radius:0 0 12px 12px; }
+.programs-workspace-content .programs-results-toolbar { margin-top:0; min-height:32px; }
+@media (max-width:639px) { .programs-workspace > .programs-status-tabs { padding-inline:4px; } .programs-workspace-content { padding:8px; } }

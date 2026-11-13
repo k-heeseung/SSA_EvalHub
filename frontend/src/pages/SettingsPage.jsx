@@ -25,7 +25,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="p-8 max-w-xl">
+    <div className="ui-page ui-page--narrow">
       <h1 className="text-2xl font-bold text-gray-900 mb-1">내 계정 설정</h1>
       <p className="text-sm text-gray-500 mb-6">계정 정보를 확인하고 비밀번호를 변경할 수 있습니다.</p>
 
@@ -43,7 +43,7 @@ export default function SettingsPage() {
         <h2 className="text-sm font-semibold text-gray-700 mb-4">기본 정보</h2>
         <div className="divide-y divide-gray-50">
           {info.map((row) => (
-            <div key={row.label} className="flex items-center justify-between py-2.5 text-sm first:pt-0 last:pb-0">
+            <div key={row.label} className="flex flex-wrap gap-3 items-center justify-between py-2.5 text-sm first:pt-0 last:pb-0">
               <span className="text-gray-500">{row.label}</span>
               <span className="font-medium text-gray-800">{row.value}</span>
             </div>
@@ -58,7 +58,7 @@ export default function SettingsPage() {
         </div>
         <button
           onClick={() => { setSavedMsg(''); setOpen(true); }}
-          className="flex items-center gap-3 w-full px-5 py-4 hover:bg-gray-50 transition-colors text-left cursor-pointer"
+          className="ui-button ui-button--ghost flex items-center gap-3 w-full px-5 py-4 hover:bg-gray-50 transition-colors text-left cursor-pointer"
         >
           <span className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -67,7 +67,7 @@ export default function SettingsPage() {
           </span>
           <span className="flex-1 min-w-0">
             <span className="block text-sm font-medium text-gray-800">비밀번호 변경</span>
-            <span className="block text-xs text-gray-400">현재 비밀번호 확인 후 새 비밀번호로 변경</span>
+            <span className="block text-xs text-gray-500">현재 비밀번호 확인 후 새 비밀번호로 변경</span>
           </span>
           <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -143,11 +143,11 @@ function ChangePasswordModal({ onClose, onSuccess }) {
       <form
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm bg-white rounded-xl shadow-xl p-6 space-y-4"
+        className="w-full max-w-sm bg-white rounded-xl shadow-xl p-6 space-y-4 max-h-[calc(100dvh-2rem)] overflow-y-auto"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-3 items-center justify-between">
           <h2 className="text-base font-bold text-gray-900">비밀번호 변경</h2>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer">
+          <button type="button" onClick={onClose} className="ui-button ui-button--ghost text-gray-500 hover:text-gray-600 cursor-pointer">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -156,15 +156,15 @@ function ChangePasswordModal({ onClose, onSuccess }) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">현재 비밀번호</label>
-          <input type="password" value={form.current} onChange={set('current')} autoComplete="current-password" className={inputClass} />
+          <input type="password" value={form.current} onChange={set('current')} autoComplete="current-password" className={'ui-input ' + (inputClass)} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">새 비밀번호 <span className="text-gray-400 font-normal">· 8자 이상</span></label>
-          <input type="password" value={form.next} onChange={set('next')} autoComplete="new-password" className={inputClass} />
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">새 비밀번호 <span className="text-gray-500 font-normal">· 8자 이상</span></label>
+          <input type="password" value={form.next} onChange={set('next')} autoComplete="new-password" className={'ui-input ' + (inputClass)} />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">새 비밀번호 확인</label>
-          <input type="password" value={form.confirm} onChange={set('confirm')} autoComplete="new-password" className={inputClass} />
+          <input type="password" value={form.confirm} onChange={set('confirm')} autoComplete="new-password" className={'ui-input ' + (inputClass)} />
         </div>
 
         {error && <p className="text-sm text-red-500">{error}</p>}
@@ -173,14 +173,14 @@ function ChangePasswordModal({ onClose, onSuccess }) {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
+            className="ui-button ui-button--ghost px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer"
           >
             취소
           </button>
           <button
             type="submit"
             disabled={mutation.isPending}
-            className="px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 cursor-pointer"
+            className="ui-button ui-button--primary px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 cursor-pointer"
           >
             {mutation.isPending ? '변경 중...' : '변경'}
           </button>

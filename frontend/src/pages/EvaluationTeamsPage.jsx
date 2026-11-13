@@ -71,7 +71,7 @@ export default function EvaluationTeamsPage() {
   if (loading)
     return (
       <div className="h-full overflow-auto flex items-center justify-center">
-        <p className="text-gray-400">로딩 중...</p>
+        <p className="text-gray-500">로딩 중...</p>
       </div>
     );
 
@@ -81,7 +81,7 @@ export default function EvaluationTeamsPage() {
         <p className="text-red-500">팀 목록을 불러올 수 없습니다.</p>
         <button
           onClick={() => navigate('/evaluator')}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm cursor-pointer"
+          className="ui-button ui-button--primary px-4 py-2 bg-blue-600 text-white rounded-lg text-sm cursor-pointer"
         >
           목록으로 돌아가기
         </button>
@@ -91,10 +91,10 @@ export default function EvaluationTeamsPage() {
   return (
     <div className="h-full flex flex-col">
       {/* 상단 네비게이션 바 */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 flex items-center h-12 px-4 gap-3">
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 flex flex-wrap items-center min-h-14 px-4 py-2 gap-3">
         <button
           onClick={() => navigate('/evaluator')}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors cursor-pointer px-2 py-1 rounded hover:bg-gray-100"
+          className="ui-button flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors cursor-pointer px-2 py-1 rounded hover:bg-gray-100"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -107,10 +107,11 @@ export default function EvaluationTeamsPage() {
         <span className="text-sm font-semibold text-gray-800">{programTitle || '심사 프로그램'}</span>
       </div>
 
-      <div className="flex-1 overflow-auto p-8">
+      <div className="ui-page flex-1 overflow-auto">
         <PageHeader
+          stackOnSmall
           title={programTitle || '심사 프로그램'}
-          subtitle={`심사 기간 ${periodText} · 심사할 팀을 선택하거나 완료한 심사를 확인하세요.`}
+          subtitle={`심사 기간 ${periodText}`}
         >
           {teams.length > 0 && (
             <div className="flex items-center gap-5 px-1">
@@ -118,7 +119,7 @@ export default function EvaluationTeamsPage() {
               <div className="w-px h-8 bg-gray-100" />
               <Summary value={draftCount} label="임시저장" color="text-amber-500" />
               <div className="w-px h-8 bg-gray-100" />
-              <Summary value={notStartedCount} label="미심사" color="text-gray-400" />
+              <Summary value={notStartedCount} label="미심사" color="text-gray-500" />
             </div>
           )}
         </PageHeader>
@@ -128,25 +129,25 @@ export default function EvaluationTeamsPage() {
         </p>
         {teams.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-            <p className="text-gray-400">심사 가능한 팀이 없습니다.</p>
+            <p className="text-gray-500">심사 가능한 팀이 없습니다.</p>
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h2 className="text-base font-semibold text-gray-800">팀 목록 ({filteredTeams.length})</h2>
-              <div className="flex gap-1">
+              <div className="ui-tabs flex gap-1 max-w-full overflow-x-auto">
                 {filterTabs.map((tab) => (
                   <button
                     key={tab.key}
                     onClick={() => setFilter(tab.key)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                    className={`min-h-11 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                       filter === tab.key
                         ? 'bg-blue-600 text-white'
                         : 'text-gray-500 hover:bg-gray-100'
                     }`}
                   >
                     {tab.label}
-                    <span className={`text-xs ${filter === tab.key ? 'text-blue-100' : 'text-gray-400'}`}>
+                    <span className={`text-xs ${filter === tab.key ? 'text-blue-100' : 'text-gray-500'}`}>
                       {tab.count}
                     </span>
                   </button>
@@ -156,10 +157,10 @@ export default function EvaluationTeamsPage() {
 
             {filteredTeams.length === 0 ? (
               <div className="text-center py-14 bg-white rounded-xl border border-gray-200">
-                <p className="text-gray-400">해당 상태의 팀이 없습니다.</p>
+                <p className="text-gray-500">해당 상태의 팀이 없습니다.</p>
               </div>
-            ) : <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-            <table className="w-full">
+            ) : <div className="ui-table-scroll bg-white rounded-xl border border-gray-200">
+            <table className="w-full min-w-[48rem]">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">번호</th>
@@ -183,13 +184,13 @@ export default function EvaluationTeamsPage() {
                       className="hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => handleSelect(team)}
                     >
-                      <td className="px-6 py-4 text-sm text-gray-400 font-mono">
+                      <td className="px-6 py-4 text-sm text-gray-500 tabular-nums">
                         #{String(teamIndex + 1).padStart(2, '0')}
                       </td>
                       <td className="sticky left-0 z-10 bg-white px-6 py-4">
                         <div className="font-semibold text-gray-900 text-sm">{team.name}</div>
                         {team.description && (
-                          <div className="text-xs text-gray-400 line-clamp-1 mt-0.5">{team.description}</div>
+                          <div className="text-xs text-gray-500 line-clamp-1 mt-0.5">{team.description}</div>
                         )}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
@@ -210,7 +211,7 @@ export default function EvaluationTeamsPage() {
                       })}
                       {bonusItems.length > 0 && <td className="px-4 py-4 text-sm text-purple-700 whitespace-nowrap">
                         {bonusSummary(team.bonusScores).total == null ? '—' : `${bonusSummary(team.bonusScores).total}점`}
-                        <div className="text-xs text-gray-400">{bonusSummary(team.bonusScores).completed}/{bonusItems.length}개 입력</div>
+                        <div className="text-xs text-gray-500">{bonusSummary(team.bonusScores).completed}/{bonusItems.length}개 입력</div>
                       </td>}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1.5">
@@ -223,7 +224,7 @@ export default function EvaluationTeamsPage() {
                       <td className="px-6 py-4 text-right">
                         <button
                           onClick={(e) => { e.stopPropagation(); handleSelect(team); }}
-                          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${s.actionStyle}`}
+                          className={`min-h-11 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${s.actionStyle}`}
                         >
                           {period.canEvaluate ? s.action : '자료·심사 보기'}
                         </button>
@@ -245,7 +246,7 @@ function Summary({ value, label, color }) {
   return (
     <div className="text-center">
       <div className={`text-xl font-bold ${color}`}>{value}</div>
-      <div className="text-xs text-gray-400">{label}</div>
+      <div className="text-xs text-gray-500">{label}</div>
     </div>
   );
 }

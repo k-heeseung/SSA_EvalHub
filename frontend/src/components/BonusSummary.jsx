@@ -7,7 +7,7 @@ export default function BonusSummary({ items = [] }) {
     <section className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm" aria-label="매니저 부여 가산점">
       <div className="flex justify-between gap-2 mb-2">
         <h3 className="font-semibold text-purple-900">가산점</h3>
-        <span className="text-xs text-purple-600">매니저 부여 · 읽기 전용</span>
+        <span className="text-xs text-purple-600">매니저 심사 · 수정 불가</span>
       </div>
       <dl className="max-h-44 overflow-y-auto space-y-2">
         {items.map((item) => (

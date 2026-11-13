@@ -1,0 +1,18 @@
+.applicant-team-page { width:100%; max-width:896px; padding:28px 24px 48px; margin:auto; min-width:0; }
+.applicant-team-page-heading { margin-bottom:8px; }
+.applicant-team-page-heading h1 { margin:0; font-size:28px; font-weight:600; line-height:1.3; letter-spacing:.015em; }
+.applicant-team-page-heading > p { margin:10px 0 0; color:var(--color-gray-600); font-size:16px; line-height:1.65; }
+.applicant-team-card { border:1px solid var(--ui-border); background:white; border-radius:12px; padding:24px; min-width:0; }
+.applicant-team-card-header { padding-bottom:24px; border-bottom:1px solid var(--ui-border); }
+.applicant-team-title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.applicant-team-title-row h2 { margin:4px 0 0; min-width:0; font-size:24px; font-weight:600; line-height:1.4; letter-spacing:.015em; overflow-wrap:anywhere; }
+.applicant-team-title-row > button { flex:none; }
+.applicant-team-program { margin:10px 0 0; font-size:14px; line-height:1.65; color:var(--color-gray-600); }
+.applicant-team-period { margin:6px 0 0; display:flex; flex-wrap:wrap; gap:2px 8px; color:var(--color-gray-600); font-size:14px; line-height:1.65; font-variant-numeric:tabular-nums; }
+.applicant-team-period > span:first-child { color:var(--color-gray-500); }
+.applicant-team-personal-contact { margin-top:24px; }
+@media (max-width:639px) {
+  .applicant-team-page { padding:24px 16px 40px; }
+  .applicant-team-page-heading > p { margin-top:8px; }
+  .applicant-team-card { padding:20px; }
+}

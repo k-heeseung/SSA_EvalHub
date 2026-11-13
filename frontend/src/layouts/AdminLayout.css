@@ -1,0 +1,88 @@
+.app-mobile-bar {
+  display: none;
+}
+
+.app-admin-shell { --admin-header-height:49px; }
+.admin-sidebar-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; height:var(--admin-header-height); flex-shrink:0; padding-block:8px; box-sizing:border-box; }
+.admin-breadcrumb-bar { display:flex; align-items:center; height:var(--admin-header-height); flex:none; padding:0 24px; background:var(--ui-surface); border-bottom:1px solid var(--color-gray-100); box-sizing:border-box; }
+.admin-breadcrumb-slot { min-width:0; width:100%; }
+.admin-breadcrumb-fallback { display:flex; align-items:center; gap:8px; color:var(--color-gray-500); font-size:14px; }
+.admin-breadcrumb-fallback [aria-current="page"] { color:var(--color-gray-600); font-weight:500; }
+.admin-breadcrumb-slot:has(> .ui-breadcrumb) > .admin-breadcrumb-fallback { display:none; }
+.admin-breadcrumb-bar .ui-breadcrumb { margin:0; flex-wrap:nowrap; gap:8px; min-width:0; }
+.admin-breadcrumb-bar .ui-breadcrumb > * { flex-shrink:0; }
+.admin-breadcrumb-bar .ui-breadcrumb > :last-child { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.admin-breadcrumb-bar .ui-breadcrumb button { min-height:32px; padding:4px 0; background:transparent; border:0; font-size:inherit; text-align:left; }
+.admin-breadcrumb-bar .ui-breadcrumb button:focus-visible { outline:2px solid var(--ui-primary); outline-offset:2px; border-radius:4px; }
+.admin-sidebar-brand { min-width:0; }
+.admin-sidebar .role-sidebar-toggle {
+  display:inline-flex; flex:none; align-items:center; justify-content:center;
+  width:32px; min-height:32px; padding:4px; border-radius:6px;
+  color:var(--color-gray-500); cursor:pointer;
+}
+.admin-sidebar .role-sidebar-toggle:hover { background:var(--color-gray-100); color:var(--color-gray-800); }
+.admin-sidebar button:focus-visible,.admin-sidebar a:focus-visible { outline:2px solid var(--ui-primary); outline-offset:2px; }
+@media(min-width:768px) {
+  .admin-sidebar-collapsed { width:56px; }
+  .admin-sidebar-collapsed .admin-sidebar-heading { padding:8px; }
+  .admin-sidebar-collapsed .admin-sidebar-brand,
+  .admin-sidebar-collapsed .admin-nav-caption,
+  .admin-sidebar-collapsed .admin-nav-label,
+  .admin-sidebar-collapsed .admin-account-copy,
+  .admin-sidebar-collapsed .admin-account-chevron { display:none; }
+  .admin-sidebar-collapsed .role-sidebar-toggle { width:40px; }
+  .admin-sidebar-collapsed nav { padding-inline:6px; }
+  .admin-sidebar-collapsed nav a,.admin-sidebar-collapsed nav > div > button { justify-content:center; padding-inline:0; min-height:44px; }
+  .admin-sidebar-collapsed .admin-sidebar-account { padding-inline:6px; }
+  .admin-sidebar-collapsed .admin-sidebar-account > div > button { justify-content:center; padding-inline:0; min-height:44px; }
+  .admin-sidebar-collapsed .admin-account-actions { left:calc(100% + 8px); right:auto; bottom:0; width:200px; }
+}
+
+/* All manager routes share the approved responsive shell. */
+@media (max-width: 47.999rem) {
+  .app-admin-shell {
+    height: 100dvh;
+    flex-direction: column;
+  }
+
+  .app-mobile-bar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: white;
+    border-bottom: 1px solid var(--color-gray-200);
+  }
+
+  .app-mobile-bar button {
+    min-height: 2.75rem;
+    cursor: pointer;
+  }
+
+  .app-admin-shell > aside {
+    display: none;
+    width: 100%;
+    max-height: 65dvh;
+    overflow-y: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-gray-200);
+  }
+
+  .app-admin-shell > aside.app-navigation-open {
+    display: flex;
+  }
+
+  .app-admin-shell > aside > div:first-child {
+    display: none; /* The mobile bar already carries the same institution identity. */
+  }
+
+  .app-admin-shell > aside nav a,
+  .app-admin-shell > aside button {
+    min-height: 2.75rem;
+  }
+  .admin-breadcrumb-bar { padding-inline:16px; }
+  .admin-breadcrumb-bar .ui-breadcrumb { overflow-x:auto; scrollbar-width:thin; }
+  .admin-breadcrumb-bar .ui-breadcrumb button { min-height:44px; }
+}

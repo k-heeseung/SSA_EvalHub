@@ -2,6 +2,7 @@ package com.example.evalhub;
 
 import com.example.evalhub.controller.EvaluationResultExportController;
 import com.example.evalhub.service.EvaluationResultsPdfService;
+import com.example.evalhub.service.EvaluationResultScoring.Method;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -52,7 +53,7 @@ class EvaluationResultExportControllerTest {
     @BeforeEach void setup() {
         reset(service);
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
-        when(service.export(1L, true)).thenReturn(new EvaluationResultsPdfService.PdfFile("한글_최종합격.pdf",
+        when(service.export(1L, true, Method.ALL)).thenReturn(new EvaluationResultsPdfService.PdfFile("한글_최종합격.pdf",
                 "%PDF-1.4\ntest".getBytes(StandardCharsets.US_ASCII)));
     }
 
@@ -64,7 +65,7 @@ class EvaluationResultExportControllerTest {
                 .andExpect(header().string("Content-Disposition", containsString("filename*=UTF-8''")))
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(content().bytes("%PDF-1.4\ntest".getBytes(StandardCharsets.US_ASCII)));
-        verify(service).export(1L, true);
+        verify(service).export(1L, true, Method.ALL);
     }
 
     @ParameterizedTest @ValueSource(strings = {"MEMBER", "EVALUATOR"})
@@ -79,9 +80,20 @@ class EvaluationResultExportControllerTest {
     }
 
     @Test void defaultRequestDownloadsDetails() throws Exception {
-        when(service.export(1L, false)).thenReturn(new EvaluationResultsPdfService.PdfFile("상세평가.pdf", new byte[]{1, 2}));
+        when(service.export(1L, false, Method.ALL)).thenReturn(new EvaluationResultsPdfService.PdfFile("상세평가.pdf", new byte[]{1, 2}));
         mvc.perform(get("/api/programs/1/evaluation-results/pdf").with(user("manager").roles("MANAGER")))
                 .andExpect(status().isOk());
-        verify(service).export(1L, false);
+        verify(service).export(1L, false, Method.ALL);
+    }
+    @Test void selectedMethodIsPassedToExporter() throws Exception {
+        when(service.export(1L, false, Method.TRIMMED)).thenReturn(new EvaluationResultsPdfService.PdfFile("trimmed.pdf", new byte[]{1}));
+        mvc.perform(get("/api/programs/1/evaluation-results/pdf").param("method", "TRIMMED").with(user("manager").roles("MANAGER")))
+                .andExpect(status().isOk());
+        verify(service).export(1L, false, Method.TRIMMED);
+    }
+    @Test void invalidMethodIsRejected() throws Exception {
+        mvc.perform(get("/api/programs/1/evaluation-results/pdf").param("method", "OTHER").with(user("manager").roles("MANAGER")))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
     }
 }
