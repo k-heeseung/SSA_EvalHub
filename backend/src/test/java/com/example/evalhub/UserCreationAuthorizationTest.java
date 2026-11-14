@@ -43,7 +43,7 @@ class UserCreationAuthorizationTest {
         }
         @Bean ProgramManagementService service() { return mock(ProgramManagementService.class); }
         @Bean ProgramManagementController controller(ProgramManagementService service) {
-            return new ProgramManagementController(service, mock(EvaluationService.class), mock(ApplicationService.class));
+            return new ProgramManagementController(service, mock(EvaluationService.class), mock(ApplicationService.class), mock(com.example.evalhub.service.AccountDeletionService.class));
         }
         @Bean SecurityFilterChain chain(HttpSecurity http) throws Exception {
             return http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())

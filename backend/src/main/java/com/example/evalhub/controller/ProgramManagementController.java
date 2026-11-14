@@ -2,6 +2,7 @@ package com.example.evalhub.controller;
 
 import com.example.evalhub.dto.*;
 import com.example.evalhub.service.ApplicationService;
+import com.example.evalhub.service.AccountDeletionService;
 import com.example.evalhub.service.EvaluationService;
 import com.example.evalhub.service.ProgramManagementService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,11 +21,13 @@ public class ProgramManagementController {
     private final ProgramManagementService programManagementService;
     private final EvaluationService evaluationService;
     private final ApplicationService applicationService;
+    private final AccountDeletionService accountDeletionService;
 
-    public ProgramManagementController(ProgramManagementService programManagementService, EvaluationService evaluationService, ApplicationService applicationService) {
+    public ProgramManagementController(ProgramManagementService programManagementService, EvaluationService evaluationService, ApplicationService applicationService, AccountDeletionService accountDeletionService) {
         this.programManagementService = programManagementService;
         this.evaluationService = evaluationService;
         this.applicationService = applicationService;
+        this.accountDeletionService = accountDeletionService;
     }
 
     // 매니저가 팀 관리 화면에서 해당 팀의 지원 정보(본인/팀원 정보 + 지원서 양식 답변)를 조회한다.
@@ -225,10 +228,11 @@ public class ProgramManagementController {
         return programManagementService.createUser(request);
     }
 
-    @Operation(summary = "계정 삭제")
+    @Operation(summary = "계정 삭제", description = "매니저는 심사위원·지원자만 삭제할 수 있습니다. 심사위원은 논리 삭제하며 평가 기록과 집계를 보존합니다.")
     @DeleteMapping("/users/{userId}")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or (hasRole('MANAGER') and @accountDeletionService.canManagerDelete(#userId))")
     public void deleteUser(@PathVariable Long userId) {
-        programManagementService.deleteUser(userId);
+        accountDeletionService.deleteUser(userId);
     }
 
     @Operation(summary = "이메일로 사용자 조회", description = "팀원 추가 시 실제 존재하는 사용자인지 확인합니다. 없으면 404를 반환합니다.")
@@ -292,8 +296,7 @@ public class ProgramManagementController {
         return evaluationService.getEvaluationResults(programId);
     }
 
-    // 배정을 취소한다. 이미 제출된 배정은 취소할 수 없다.
-    @Operation(summary = "배정 취소", description = "제출 전 배정을 취소(삭제)합니다.")
+    @Operation(summary = "배정 삭제", description = "제출 여부와 무관하게 배정과 해당 평가 기록을 삭제합니다. 기존 평가는 결과에서 제외되며 평균·순위가 변경될 수 있습니다.")
     @DeleteMapping("/assignments/{assignmentId}")
     public void cancelAssignment(@PathVariable Long assignmentId) {
         programManagementService.cancelAssignment(assignmentId);

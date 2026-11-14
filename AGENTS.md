@@ -37,6 +37,8 @@ cd frontend && npm install && npm run dev
 | 심사위원 생성 (서버 비밀번호 생성·메일 예약) | `POST /api/evaluators` |
 | 안내 메일 상태 / 재시도 | `GET /api/evaluator-invitations`, `GET /api/evaluators/{id}/invitation`, `POST /api/evaluators/{id}/invitation/retry` |
 | 심사 배정 | `GET/POST /api/programs/{id}/assignments` |
+| 계정 삭제 | `DELETE /api/users/{id}` — MANAGER는 EVALUATOR·MEMBER만 가능. 심사위원은 논리 삭제 |
+| 배정 삭제 | `DELETE /api/assignments/{id}` — 제출 여부와 무관하게 배정·평가 기록을 실제 삭제 |
 | 평가 뷰 조회 | `GET /api/evaluation-assignments/{id}/view` |
 | 임시저장 | `PUT /api/evaluation-assignments/{id}/draft` |
 | 최종 제출 | `PUT /api/evaluation-assignments/{id}/submit` |
@@ -69,6 +71,14 @@ cd frontend && npm install && npm run dev
   - `DRAFT`를 제외한 전환은 날짜에 따라 자동으로 이뤄집니다 (`ProgramManagementService.resolveAutoStatus`, 매시간 `ProgramStatusScheduler`)
   - 임의 상태 변경 API는 없습니다. 개설은 `POST /api/programs/{id}/publish`, 종료·재개는 평가 기간 수정으로 처리합니다. 생성 시 `status`는 `DRAFT` 또는 개설 요청을 의미하는 `ACTIVE`(생략 가능)만 허용하며, 실제 개설 상태는 기간으로 계산합니다.
 - **사용자 역할:** `SUPER_ADMIN`, `MANAGER`, `EVALUATOR`, `MEMBER`
+
+## 계정 삭제와 배정 삭제
+
+- 심사위원 계정 삭제는 `users.deleted_at`을 설정하고 비활성화하는 논리 삭제입니다. 계정 행·기존 배정·평가 점수·집계를 보존하며, 일반 심사위원 목록·로그인·신규 배정에서 제외합니다. 과거 평가에는 `삭제된 심사위원`으로 표시합니다.
+- 계정 삭제 권한은 controller의 `@PreAuthorize`와 `AccountDeletionService.canManagerDelete`로 검사합니다. MANAGER는 EVALUATOR·MEMBER만 삭제할 수 있습니다.
+- 프로그램별 배정 삭제는 별개입니다. 제출 완료된 배정도 삭제 가능하며 DB FK cascade로 해당 평가·점수가 삭제됩니다. 평균·순위에 영향을 주므로 프론트에서 삭제 결과를 안내합니다.
+- 삭제된 계정의 이메일은 재사용하지 않습니다. 삭제 계정의 상태 변경·안내 메일 재시도도 차단합니다.
+- 자세한 계약과 검증 범위: `backend/docs/account-deletion.md`.
 
 ## 전화번호 저장 규칙
 

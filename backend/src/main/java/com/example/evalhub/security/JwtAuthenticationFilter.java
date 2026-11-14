@@ -10,6 +10,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -23,10 +26,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final EvalHubUserDetailsService userDetailsService;
+    private final boolean secureCookie;
 
-    public JwtAuthenticationFilter(JwtService jwtService, EvalHubUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtService jwtService, EvalHubUserDetailsService userDetailsService,
+            @Value("${evalhub.security.secure-cookie:false}") boolean secureCookie) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.secureCookie = secureCookie;
     }
 
     @Override
@@ -47,8 +53,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             UsernamePasswordAuthenticationToken.authenticated(user, token, user.getAuthorities());
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
-            } catch (JwtException | IllegalArgumentException ignored) {
+            } catch (JwtException | IllegalArgumentException | AuthenticationException ignored) {
                 // Invalid and expired tokens are handled by the normal 401 entry point.
+            }
+            if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                response.addHeader("Set-Cookie", ResponseCookie.from(ACCESS_TOKEN_COOKIE, "")
+                        .httpOnly(true).secure(secureCookie).sameSite("Lax").path("/").maxAge(0).build().toString());
             }
         }
         filterChain.doFilter(request, response);

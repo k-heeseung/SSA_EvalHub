@@ -31,7 +31,7 @@ class EvaluatorStatusTest {
     @EnumSource(value = Role.class, names = {"SUPER_ADMIN", "MANAGER", "MEMBER"})
     void rejectsOtherRolesWithoutChangingTheirStatus(Role role) {
         User target = new User("target@example.com", "unused", role);
-        when(users.findById(1L)).thenReturn(Optional.of(target));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(target));
 
         var error = assertThrows(ResponseStatusException.class,
                 () -> service.changeEvaluatorStatus(1L, new ChangeStatusRequest(Status.INACTIVE)));
@@ -43,7 +43,7 @@ class EvaluatorStatusTest {
     @Test
     void evaluatorCanBeDeactivatedAndReactivated() {
         User target = new User("evaluator@example.com", "unused", Role.EVALUATOR);
-        when(users.findById(1L)).thenReturn(Optional.of(target));
+        when(users.findLockedById(1L)).thenReturn(Optional.of(target));
 
         assertThat(service.changeEvaluatorStatus(1L, new ChangeStatusRequest(Status.INACTIVE)).status())
                 .isEqualTo(Status.INACTIVE);
@@ -55,7 +55,7 @@ class EvaluatorStatusTest {
 
     @Test
     void missingUserRemainsNotFound() {
-        when(users.findById(1L)).thenReturn(Optional.empty());
+        when(users.findLockedById(1L)).thenReturn(Optional.empty());
 
         var error = assertThrows(ResponseStatusException.class,
                 () -> service.changeEvaluatorStatus(1L, new ChangeStatusRequest(Status.INACTIVE)));

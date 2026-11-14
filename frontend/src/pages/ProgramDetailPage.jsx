@@ -223,7 +223,7 @@ function AssignmentTab({ programId }) {
   if (loading) return <div className="text-gray-500">로딩 중...</div>;
 
   const assignedIds = new Set(assignedEvaluators.map((e) => e.id));
-  const unassignedEvaluators = allEvaluators.filter((e) => !assignedIds.has(e.id));
+  const unassignedEvaluators = allEvaluators.filter((e) => e.status === 'ACTIVE' && !assignedIds.has(e.id));
 
   return (
     <div className="program-detail-assignment">
@@ -249,14 +249,14 @@ function AssignmentTab({ programId }) {
                 const assignment = assignments.find((a) => a.evaluatorId === evaluator.id);
                 return (
                   <tr key={evaluator.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-800">{evaluator.email}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-800">{evaluator.deleted ? '삭제된 심사위원' : evaluator.email}</td>
                     <td className="px-6 py-4">
                       <AssignmentStatusBadge status={assignment?.status} />
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => setCancelTarget({ id: assignment?.id, email: evaluator.email })}
-                        disabled={assignment?.status === 'SUBMITTED'}
+                        onClick={() => setCancelTarget({ id: assignment?.id, email: evaluator.deleted ? '삭제된 심사위원' : evaluator.email })}
+                        disabled={!assignment}
                         className="ui-button ui-button--ghost text-sm text-red-400 hover:text-red-600 disabled:text-gray-300 disabled:cursor-not-allowed cursor-pointer"
                       >
                         배정 취소
@@ -330,6 +330,7 @@ function CancelAssignmentDialog({ evaluatorEmail, pending, onClose, onConfirm })
     >
       <h2 id="assignment-cancel-title">심사위원 배정을 취소할까요?</h2>
       <p id="assignment-cancel-description"><strong>{evaluatorEmail}</strong>님의 프로그램 배정을 취소합니다.</p>
+      <p>이 배정과 해당 평가 기록이 삭제되며 복구할 수 없습니다. 기존 평가는 결과에서 제외되고 평균·순위가 변경될 수 있습니다.</p>
       {error && <p className="assignment-cancel-error" role="alert">{error}</p>}
       <div className="assignment-cancel-footer">
         <button type="button" className="ui-button ui-button--secondary" autoFocus disabled={pending} onClick={onClose}>돌아가기</button>

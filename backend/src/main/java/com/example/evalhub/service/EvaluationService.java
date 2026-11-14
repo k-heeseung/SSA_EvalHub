@@ -211,6 +211,11 @@ public class EvaluationService {
         // Preserve changes made earlier in this transaction before reloading under the program lock.
         entityManager.flush();
         entityManager.refresh(assignment.getProgram(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        try {
+            entityManager.refresh(assignment);
+        } catch (jakarta.persistence.EntityNotFoundException error) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Assignment not found.");
+        }
         Team team = findTeam(teamId);
         validateTeamBelongsToProgram(team, assignment.getProgram().getId());
         validateTeamIsEvaluable(team);
@@ -312,8 +317,8 @@ public class EvaluationService {
                                         .orElse(null);
                                 return new EvaluatorSubmissionSummary(
                                         assignment.getEvaluator().getId(),
-                                        assignment.getEvaluator().getEmail(),
-                                        assignment.getEvaluator().getName(),
+                                        assignment.getEvaluator().getDisplayEmail(),
+                                        assignment.getEvaluator().getDisplayName(),
                                         submission
                                 );
                             })

@@ -147,12 +147,12 @@ function computeRebalanceSuggestions(programs, evaluators, effectiveMap) {
 }
 
 // pendingAction: undefined(확정) | 'add'(대기 추가) | 'remove'(대기 해제)
-function AssignCell({ checked, submitted, pendingAction, onChange }) {
+function AssignCell({ checked, disabled, pendingAction, onChange }) {
   const isPendingAdd    = pendingAction === 'add';
   const isPendingRemove = pendingAction === 'remove';
 
   let cls = 'inline-flex shrink-0 items-center justify-center w-6 h-6 rounded-md border-2 transition-all duration-150 ';
-  if (submitted) {
+  if (disabled) {
     cls += checked ? 'bg-gray-300 border-gray-300 cursor-not-allowed' : 'border-gray-200 bg-gray-50 cursor-not-allowed';
   } else if (isPendingAdd) {
     cls += 'bg-amber-400 border-amber-400 hover:bg-amber-500 hover:border-amber-500 cursor-pointer';
@@ -168,10 +168,10 @@ function AssignCell({ checked, submitted, pendingAction, onChange }) {
     <button
       type="button"
       onClick={onChange}
-      disabled={submitted}
+      disabled={disabled}
       aria-pressed={!isPendingRemove && (checked || isPendingAdd)}
       aria-label={isPendingRemove ? '배정 해제 대기' : isPendingAdd ? '배정 추가 대기' : checked ? '배정됨' : '미배정'}
-      title={submitted ? '제출 완료된 배정은 취소할 수 없습니다.' : undefined}
+      title={disabled ? '삭제되었거나 비활성인 심사위원은 새로 배정할 수 없습니다.' : undefined}
       className="ui-button ui-button--ghost inline-flex min-h-11 min-w-11 items-center justify-center p-0"
     >
       <span aria-hidden="true" className={cls}>
@@ -197,7 +197,7 @@ export default function AssignmentsPage() {
   const programsQuery = useLiveApiQuery(queryKeys.programs, () => getPrograms());
   const evaluatorsQuery = useLiveApiQuery(queryKeys.evaluators, () => getEvaluators());
   const programs = (programsQuery.data ?? []).filter((program) => program.status !== 'DRAFT');
-  const evaluators = evaluatorsQuery.data ?? [];
+  const availableEvaluators = evaluatorsQuery.data ?? [];
   const assignmentQueries = useQueries({
     queries: programs.map((program) => ({
       queryKey: queryKeys.programAssignments(program.id),
@@ -207,6 +207,14 @@ export default function AssignmentsPage() {
       refetchIntervalInBackground: false,
     })),
   });
+  // 삭제된 계정은 일반 목록에서 숨기되 보존된 기존 배정은 확인·해제할 수 있다.
+  const deletedEvaluators = new Map();
+  assignmentQueries.forEach((query) => (query.data ?? []).forEach((assignment) => {
+    if (assignment.evaluatorDeleted) deletedEvaluators.set(assignment.evaluatorId, {
+      id: assignment.evaluatorId, email: '', name: '삭제된 심사위원', deleted: true,
+    });
+  }));
+  const evaluators = [...availableEvaluators, ...deletedEvaluators.values()];
   const assignmentMap = useMemo(() => {
     const map = {};
     programs.forEach((program, index) => {
@@ -244,7 +252,8 @@ export default function AssignmentsPage() {
   // 체크박스 클릭 → pendingMap만 업데이트 (API 호출 없음)
   const toggleAssignment = (programId, evaluatorId) => {
     const serverAssignment = assignmentMap[programId]?.[evaluatorId];
-    if (serverAssignment?.status === 'SUBMITTED') return;
+    const evaluator = evaluators.find((ev) => ev.id === evaluatorId);
+    if (!serverAssignment && (evaluator?.deleted || evaluator?.status === 'INACTIVE')) return;
 
     setPendingMap((prev) => {
       const programPending = { ...(prev[programId] ?? {}) };
@@ -290,6 +299,8 @@ export default function AssignmentsPage() {
   // 배정 확정: pendingMap을 일괄 API 적용
   const confirmAssignments = async () => {
     if (!hasPendingChanges) return;
+    const removals = Object.values(pendingMap).reduce((sum, changes) => sum + Object.values(changes).filter((action) => action === 'remove').length, 0);
+    if (removals && !window.confirm(`${removals}건의 배정과 해당 평가 기록을 삭제합니다. 복구할 수 없으며, 기존 평가는 결과에서 제외되고 평균·순위가 변경될 수 있습니다.`)) return;
     try {
       await applyMutation.mutateAsync();
       setPendingMap({});
@@ -306,8 +317,9 @@ export default function AssignmentsPage() {
   };
 
   const openSmartModal = () => {
-    const addSuggestions       = computeSmartSuggestions(programs, evaluators, effectiveMap);
-    const rebalanceSuggestions = computeRebalanceSuggestions(programs, evaluators, effectiveMap);
+    const eligible = availableEvaluators.filter((ev) => ev.status === 'ACTIVE');
+    const addSuggestions       = computeSmartSuggestions(programs, eligible, effectiveMap);
+    const rebalanceSuggestions = computeRebalanceSuggestions(programs, eligible, effectiveMap);
     setSmartModal([...addSuggestions, ...rebalanceSuggestions]);
   };
 
@@ -449,7 +461,7 @@ export default function AssignmentsPage() {
                                 <div className="flex justify-center">
                                   <AssignCell
                                     checked={!!assignment}
-                                    submitted={assignment?.status === 'SUBMITTED'}
+                                    disabled={(ev.deleted || ev.status === 'INACTIVE') && !assignment && pendingAction !== 'remove'}
                                     pendingAction={pendingAction}
                                     onChange={() => toggleAssignment(program.id, ev.id)}
                                   />

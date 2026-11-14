@@ -682,13 +682,6 @@ public class ProgramManagementService {
     }
 
     @Transactional
-    public void deleteUser(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> notFound("User not found."));
-        userRepository.delete(user);
-    }
-
-    @Transactional
     public void deleteProgram(Long programId) {
         Program program = programRepository.findById(programId)
                 .orElseThrow(() -> notFound("Program not found."));
@@ -733,7 +726,7 @@ public class ProgramManagementService {
     // 이메일로 사용자를 조회한다. 팀원 추가 화면에서 실제 존재하는 사용자인지 확인하는 데 사용한다.
     @Transactional(readOnly = true)
     public UserResponse findUserByEmail(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmail(email).filter(user -> !user.isDeleted())
                 .map(UserResponse::from)
                 .orElseThrow(() -> notFound("User not found."));
     }
@@ -750,7 +743,7 @@ public class ProgramManagementService {
     // 평가 배정 화면에서 선택 가능한 심사위원 목록을 제공한다.
     @Transactional(readOnly = true)
     public List<UserResponse> findEvaluators() {
-        return userRepository.findByRole(Role.EVALUATOR).stream()
+        return userRepository.findByRoleAndDeletedAtIsNull(Role.EVALUATOR).stream()
                 .map(u -> UserResponse.from(u, assignmentRepository.countByEvaluatorId(u.getId())))
                 .toList();
     }
@@ -768,11 +761,14 @@ public class ProgramManagementService {
     public AssignmentResponse createAssignment(Long programId, CreateAssignmentRequest request) {
         Program program = programRepository.findById(programId)
                 .orElseThrow(() -> notFound("Program not found."));
-        User evaluator = userRepository.findById(request.evaluatorId())
+        User evaluator = userRepository.findLockedById(request.evaluatorId())
                 .orElseThrow(() -> notFound("Evaluator not found."));
 
         if (evaluator.getRole() != Role.EVALUATOR) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User is not an evaluator.");
+        }
+        if (evaluator.isDeleted() || evaluator.getStatus() != Status.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "삭제되었거나 비활성인 심사위원은 새로 배정할 수 없습니다.");
         }
         assignmentRepository.findByProgramIdAndEvaluatorId(programId, evaluator.getId()).ifPresent(assignment -> {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Assignment already exists.");
@@ -788,11 +784,12 @@ public class ProgramManagementService {
     // 심사위원 계정 비활성화/활성화.
     @Transactional
     public UserResponse changeEvaluatorStatus(Long evaluatorId, ChangeStatusRequest request) {
-        User evaluator = userRepository.findById(evaluatorId)
+        User evaluator = userRepository.findLockedById(evaluatorId)
                 .orElseThrow(() -> notFound("Evaluator not found."));
         if (evaluator.getRole() != Role.EVALUATOR) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User is not an evaluator.");
         }
+        if (evaluator.isDeleted()) throw new ResponseStatusException(HttpStatus.CONFLICT, "삭제된 심사위원의 상태는 변경할 수 없습니다.");
         evaluator.changeStatus(request.status());
         return UserResponse.from(evaluator);
     }
@@ -813,16 +810,18 @@ public class ProgramManagementService {
                 .toList();
     }
 
-    // 배정을 취소(삭제)한다.
+    // 제출 여부와 무관하게 배정과 평가 기록을 삭제하고 집계에서 제외한다.
     @Transactional
     public void cancelAssignment(Long assignmentId) {
         EvaluationAssignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> notFound("Assignment not found."));
 
-        if (assignment.getStatus() == AssignmentStatus.SUBMITTED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot cancel a submitted assignment.");
+        entityManager.refresh(assignment.getProgram(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        try {
+            entityManager.refresh(assignment, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        } catch (jakarta.persistence.EntityNotFoundException error) {
+            throw notFound("Assignment not found.");
         }
-
         assignmentRepository.delete(assignment);
     }
 

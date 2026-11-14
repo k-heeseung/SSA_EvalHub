@@ -22,13 +22,15 @@ public final class AuthenticatedUser implements UserDetails, Serializable {
     private final String password;
     private final Role role;
     private final Status status;
+    private final boolean deleted;
 
-    private AuthenticatedUser(Long id, String email, String password, Role role, Status status) {
+    private AuthenticatedUser(Long id, String email, String password, Role role, Status status, boolean deleted) {
         this.id = id;
         this.email = email;
         this.password = password;
         this.role = role;
         this.status = status;
+        this.deleted = deleted;
     }
 
     public static AuthenticatedUser from(User user) {
@@ -37,7 +39,8 @@ public final class AuthenticatedUser implements UserDetails, Serializable {
                 user.getEmail(),
                 user.getPassword(),
                 user.getRole(),
-                user.getStatus()
+                user.getStatus(),
+                user.isDeleted()
         );
     }
 
@@ -81,6 +84,6 @@ public final class AuthenticatedUser implements UserDetails, Serializable {
 
     @Override
     public boolean isEnabled() {
-        return status == Status.ACTIVE;
+        return !deleted && status == Status.ACTIVE;
     }
 }

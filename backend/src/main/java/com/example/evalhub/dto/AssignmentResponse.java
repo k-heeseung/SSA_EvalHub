@@ -8,7 +8,9 @@ public record AssignmentResponse(
         Long programId,
         Long evaluatorId,
         String evaluatorEmail,
-        AssignmentStatus status
+        AssignmentStatus status,
+        String evaluatorName,
+        boolean evaluatorDeleted
 ) {
 
     public static AssignmentResponse from(EvaluationAssignment assignment) {
@@ -16,8 +18,10 @@ public record AssignmentResponse(
                 assignment.getId(),
                 assignment.getProgram().getId(),
                 assignment.getEvaluator().getId(),
-                assignment.getEvaluator().getEmail(),
-                assignment.getStatus()
+                assignment.getEvaluator().getDisplayEmail(),
+                assignment.getStatus(),
+                assignment.getEvaluator().getDisplayName(),
+                assignment.getEvaluator().isDeleted()
         );
     }
 }

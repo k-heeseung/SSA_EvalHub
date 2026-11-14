@@ -38,6 +38,21 @@ public class User {
     @Column
     private String department;
 
+    @Column(columnDefinition = "timestamp with time zone")
+    private java.time.Instant deletedAt;
+
+    public boolean isDeleted() { return deletedAt != null; }
+
+    public String getDisplayName() { return isDeleted() ? "삭제된 심사위원" : name; }
+
+    public String getDisplayEmail() { return isDeleted() ? "" : email; }
+
+    public void deleteEvaluatorAccount() {
+        if (role != Role.EVALUATOR) throw new IllegalStateException("Only evaluator accounts can be soft-deleted.");
+        if (deletedAt == null) deletedAt = java.time.Instant.now();
+        status = Status.INACTIVE;
+    }
+
     public User(String email, String password, Role role) {
         this.email = email;
         this.password = password;

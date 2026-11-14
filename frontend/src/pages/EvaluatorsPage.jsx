@@ -69,7 +69,7 @@ export default function EvaluatorsPage() {
 
   const handleDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`선택한 심사위원 ${selectedIds.size}명을 삭제하시겠습니까?`)) return;
+    if (!window.confirm(`선택한 심사위원 ${selectedIds.size}명\n\n심사위원 계정을 삭제합니다. 로그인과 신규 배정은 차단되며, 기존 평가 기록과 결과는 유지됩니다.`)) return;
     try {
       await deleteMutation.mutateAsync([...selectedIds]);
       exitEditMode();

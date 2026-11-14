@@ -649,7 +649,7 @@ export default function TeamDetailPage() {
                 <div className="space-y-3">
                   {submittedEvals.map((e) => {
                     const score = Number(e.submission.totalScore);
-                    const emailShort = (e.evaluatorEmail || '').split('@')[0];
+                    const emailShort = e.evaluatorName || (e.evaluatorEmail || '').split('@')[0];
                     return (
                       <div key={e.evaluatorId}>
                         <div className="flex flex-wrap gap-3 items-center justify-between text-xs mb-1">

@@ -73,7 +73,7 @@ public class EvaluatorInvitationService {
     @Transactional(readOnly = true)
     public InvitationList list() {
         return new InvitationList(settings.enabled(), secrets.configured(), jdbc.query(
-                "select * from evaluator_invitations order by user_id", this::view));
+                "select i.* from evaluator_invitations i join users u on u.id = i.user_id where u.deleted_at is null order by i.user_id", this::view));
     }
     @Transactional(readOnly = true)
     public InvitationView get(long userId) {
@@ -107,7 +107,7 @@ public class EvaluatorInvitationService {
             """, userId);
     }
     private void requireEvaluator(long id) {
-        if (jdbc.queryForObject("select count(*) from users where id = ? and role = 'EVALUATOR'", Long.class, id) != 1)
+        if (jdbc.queryForObject("select count(*) from users where id = ? and role = 'EVALUATOR' and deleted_at is null", Long.class, id) != 1)
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "심사위원을 찾을 수 없습니다.");
     }
     private boolean lockUser(long id) {

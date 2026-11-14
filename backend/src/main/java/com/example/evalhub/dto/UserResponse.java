@@ -12,7 +12,8 @@ public record UserResponse(
         String name,
         String phone,
         String department,
-        long assignmentCount
+        long assignmentCount,
+        boolean deleted
 ) {
 
     public static UserResponse from(User user) {
@@ -20,6 +21,7 @@ public record UserResponse(
     }
 
     public static UserResponse from(User user, long assignmentCount) {
-        return new UserResponse(user.getId(), user.getEmail(), user.getRole(), user.getStatus(), user.getName(), user.getPhone(), user.getDepartment(), assignmentCount);
+        return new UserResponse(user.getId(), user.getDisplayEmail(), user.getRole(), user.getStatus(), user.getDisplayName(),
+                user.isDeleted() ? null : user.getPhone(), user.isDeleted() ? null : user.getDepartment(), assignmentCount, user.isDeleted());
     }
 }
