@@ -45,7 +45,7 @@ public class ProgramManagementController {
     }
 
     // 프로그램 매니저가 Module A/B 평가 프로그램을 생성한다.
-    @Operation(summary = "프로그램 등록", description = "기간은 applicationStartAt/applicationDeadlineAt/evaluationStartAt/evaluationDeadlineAt에 시간대가 포함된 ISO-8601 시각으로 보냅니다. 기존 날짜 필드도 호환됩니다. 시각 필드가 우선하며 마감 시각부터 차단됩니다.")
+    @Operation(summary = "프로그램 등록", description = "status는 DRAFT(임시저장) 또는 ACTIVE(개설, 생략 가능)만 허용하며 실제 상태는 기간으로 계산합니다. 기간은 applicationStartAt/applicationDeadlineAt/evaluationStartAt/evaluationDeadlineAt에 시간대가 포함된 ISO-8601 시각으로 보냅니다. 기존 날짜 필드도 호환됩니다. 시각 필드가 우선하며 마감 시각부터 차단됩니다.")
     @PostMapping("/programs")
     public ProgramResponse createProgram(@RequestBody CreateProgramRequest request) {
         return programManagementService.createProgram(request);
@@ -79,11 +79,10 @@ public class ProgramManagementController {
         programManagementService.deleteProgram(programId);
     }
 
-    // 프로그램 상태를 변경한다 (ACTIVE ↔ INACTIVE).
-    @Operation(summary = "프로그램 상태 변경", description = "프로그램을 활성/비활성 상태로 전환합니다.")
-    @PatchMapping("/programs/{programId}/status")
-    public ProgramResponse changeStatus(@PathVariable Long programId, @RequestBody ChangeStatusRequest request) {
-        return programManagementService.changeStatus(programId, request);
+    @Operation(summary = "임시저장 프로그램 개설", description = "DRAFT 프로그램을 개설합니다. 개설 후 상태는 현재 시각과 지원·평가 기간에 따라 결정됩니다.")
+    @PostMapping("/programs/{programId}/publish")
+    public ProgramResponse publishProgram(@PathVariable Long programId) {
+        return programManagementService.publishProgram(programId);
     }
 
     // 프로그램에 평가 대상 팀을 등록한다. 개인 참가자도 1인 팀으로 등록한다.

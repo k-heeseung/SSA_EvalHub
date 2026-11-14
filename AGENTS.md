@@ -29,6 +29,7 @@ cd frontend && npm install && npm run dev
 | 비밀번호 변경 (본인) | `PUT /api/auth/password` |
 | 지원자 회원가입 | `POST /api/signup` |
 | 프로그램 CRUD | `GET/POST/PUT /api/programs` |
+| 임시저장 프로그램 개설 | `POST /api/programs/{id}/publish` (DRAFT만 허용, 상태는 기간으로 계산) |
 | 프로그램 소속 팀 | `GET/POST /api/programs/{id}/teams` |
 | 지원 양식 항목 | `GET/PUT /api/programs/{id}/form-fields` (PUT은 id 기준 diff — 아래 참고) |
 | 평가 기준 | `GET/POST /api/programs/{id}/criteria` |
@@ -66,6 +67,7 @@ cd frontend && npm install && npm run dev
 - **프로그램 상태:** `DRAFT` → `SCHEDULED` → `RECRUITING` → `PENDING_EVALUATION` → `ACTIVE` → `INACTIVE`
   - `SCHEDULED`=접수 예정(지원 시작일 전), `PENDING_EVALUATION`=평가 대기(지원 마감 후 평가 시작일 전), `ACTIVE`=평가 진행, `INACTIVE`=평가 완료
   - `DRAFT`를 제외한 전환은 날짜에 따라 자동으로 이뤄집니다 (`ProgramManagementService.resolveAutoStatus`, 매시간 `ProgramStatusScheduler`)
+  - 임의 상태 변경 API는 없습니다. 개설은 `POST /api/programs/{id}/publish`, 종료·재개는 평가 기간 수정으로 처리합니다. 생성 시 `status`는 `DRAFT` 또는 개설 요청을 의미하는 `ACTIVE`(생략 가능)만 허용하며, 실제 개설 상태는 기간으로 계산합니다.
 - **사용자 역할:** `SUPER_ADMIN`, `MANAGER`, `EVALUATOR`, `MEMBER`
 
 ## 전화번호 저장 규칙

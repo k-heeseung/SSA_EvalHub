@@ -15,7 +15,6 @@
 .program-detail-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; max-width:100%; }
 .program-detail-action { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 12px; white-space:nowrap; }
 .program-detail-action svg { width:16px; height:16px; flex:none; }
-.program-detail-status-control { position:relative; }
 .program-detail-schedule { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px 32px; margin:24px 0 0; padding-top:20px; border-top:1px solid var(--color-gray-100); }
 .program-detail-schedule > div { min-width:0; }
 .program-detail-schedule dt { margin-bottom:6px; font-size:14px; color:var(--color-gray-500); }
@@ -33,7 +32,6 @@
   .program-detail-identity { flex-basis:100%; }
   .program-detail-actions { width:100%; }
   .program-detail-action { padding-inline:6px; }
-  .program-detail-status-control { margin-left:auto; }
   .program-detail-schedule { grid-template-columns:minmax(0,1fr); }
   .program-detail-metrics { gap:12px 24px; }
 }

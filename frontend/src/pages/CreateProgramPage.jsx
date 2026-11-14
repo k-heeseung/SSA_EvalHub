@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
-  createProgram, updateProgram, changeStatus, getPrograms, deleteProgram,
+  createProgram, updateProgram, publishProgram, getPrograms, deleteProgram,
   getCriteria, createCriterion, updateCriterion, deleteCriterion,
   getFormFields, replaceFormFields,
 } from '../api/programs';
@@ -369,7 +369,7 @@ export default function CreateProgramPage() {
     }
   };
 
-  // 개설 (ACTIVE로 전환)
+  // 구성 저장이 모두 성공한 뒤 개설한다. 실제 상태는 서버가 기간으로 계산한다.
   const handleCreate = async () => {
     if (!title.trim())          { showToast('프로그램 명을 입력해주세요.', 'error'); return; }
     if (!validateBonus()) return;
@@ -385,10 +385,9 @@ export default function CreateProgramPage() {
         const res = await updateProgram(draftId, formData());
         setOriginalProgram(res.data);
         hydrateBonusItems(res.data);
-        await changeStatus(draftId, { status: 'ACTIVE' });
         pid = draftId;
       } else {
-        const res = await createProgram({ ...formData(), status: 'ACTIVE' });
+        const res = await createProgram({ ...formData(), status: 'DRAFT' });
         setDraftId(res.data.id);
         setOriginalProgram(res.data);
         hydrateBonusItems(res.data);
@@ -396,6 +395,7 @@ export default function CreateProgramPage() {
       }
       await syncCriteria(pid);
       await syncFormFields(pid);
+      await publishProgram(pid);
       navigate('/admin/programs');
     } catch (err) {
       setError(`생성 실패: ${extractError(err)}`);

@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { programTypeLabel } from '../utils/labels';
 import {
   getPrograms, getTeams, getEvaluatorsByProgram, getAssignmentsByProgram,
-  createAssignment, cancelAssignment, changeStatus, getEvaluationResults, getCriteria,
+  createAssignment, cancelAssignment, getEvaluationResults, getCriteria,
 } from '../api/programs';
 import { getEvaluators } from '../api/evaluators';
 import ProgramResultsPanel from '../components/ProgramResultsPanel';
@@ -25,7 +25,6 @@ const PROGRAM_STATUS = {
   ACTIVE:     { label: '평가 진행', dot: 'bg-blue-500',    pill: 'bg-blue-100 text-blue-700'     },
   INACTIVE:   { label: '평가 완료',      dot: 'bg-gray-400',    pill: 'bg-gray-100 text-gray-500'     },
 };
-const PROGRAM_STATUS_ORDER = ['DRAFT', 'SCHEDULED', 'RECRUITING', 'PENDING_EVALUATION', 'ACTIVE', 'INACTIVE'];
 
 
 
@@ -45,10 +44,6 @@ export default function ProgramDetailPage() {
   }, { replace: true, state });
   // 어디서 들어왔는지에 따라 상단 '이전' 버튼이 돌아갈 곳을 정한다. (기본값: 프로그램 목록)
   const back = state?.back ?? { path: '/admin/programs', label: '프로그램' };
-  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  const statusMenuRef = useRef(null);
-  const statusTriggerRef = useRef(null);
-  const queryClient = useQueryClient();
   const programsQuery = useLiveApiQuery(queryKeys.programs, () => getPrograms());
   const teamsQuery = useLiveApiQuery(queryKeys.teams(programId), () => getTeams(programId));
   const criteriaQuery = useLiveApiQuery(queryKeys.criteria(programId), () => getCriteria(programId));
@@ -62,35 +57,9 @@ export default function ProgramDetailPage() {
   const evaluatorCount = evaluatorsQuery.data?.length ?? 0;
   const loading = programsQuery.isPending || teamsQuery.isPending
     || criteriaQuery.isPending || evaluatorsQuery.isPending;
-  const statusMutation = useMutation({
-    mutationFn: (newStatus) => changeStatus(program.id, { status: newStatus }),
-  });
-  const togglingStatus = statusMutation.isPending;
   const resultsQuery = useLiveApiQuery(queryKeys.evaluationResults(programId), () => getEvaluationResults(programId));
   const progress = programProgress(teamsQuery.data ?? [], resultsQuery.data ?? [], teamsQuery.isSuccess && resultsQuery.isSuccess);
   const evaluationRate = progress.rate;
-
-  useEffect(() => {
-    if (!statusMenuOpen) return;
-    const handleClickOutside = (e) => {
-      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target)) setStatusMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [statusMenuOpen]);
-
-  const handleChangeStatus = async (newStatus) => {
-    if (newStatus === program.status) { setStatusMenuOpen(false); return; }
-    try {
-      const res = await statusMutation.mutateAsync(newStatus);
-      queryClient.setQueryData(queryKeys.programs, (current = []) => (
-        current.map((item) => (item.id === res.data.id ? res.data : item))
-      ));
-      setStatusMenuOpen(false);
-    } catch {
-      alert('상태 변경에 실패했습니다.');
-    }
-  };
 
   if (loading) return <div className="ui-page text-gray-500">로딩 중...</div>;
   if (!program) return <div className="ui-page text-red-500">프로그램을 찾을 수 없습니다.</div>;
@@ -143,49 +112,7 @@ export default function ProgramDetailPage() {
             </svg>
             정보 수정
           </button>
-          <div className="program-detail-status-control" ref={statusMenuRef} onKeyDown={(event) => {
-            if (event.key === 'Escape') { setStatusMenuOpen(false); statusTriggerRef.current?.focus(); }
-          }}>
-            <button
-              ref={statusTriggerRef}
-              onClick={() => setStatusMenuOpen((v) => !v)}
-              disabled={togglingStatus}
-              aria-expanded={statusMenuOpen}
-              aria-controls={statusMenuOpen ? 'program-status-options' : undefined}
-              className="ui-button program-detail-action"
-            >
-              상태 변경
-              <svg className={`w-4 h-4 transition-transform ${statusMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {statusMenuOpen && (
-              <div id="program-status-options" className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-20">
-                {PROGRAM_STATUS_ORDER.map((key) => {
-                  const info = PROGRAM_STATUS[key];
-                  const isCurrent = program.status === key;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => handleChangeStatus(key)}
-                      disabled={togglingStatus}
-                      className={`ui-button ui-button--ghost flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-gray-50 disabled:opacity-50 cursor-pointer ${
-                        isCurrent ? 'text-gray-900 font-medium' : 'text-gray-600'
-                      }`}
-                    >
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${info.dot}`} />
-                      <span className="flex-1">{info.label}</span>
-                      {isCurrent && (
-                        <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+
         </div>
         </div>
       </header>

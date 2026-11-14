@@ -68,6 +68,10 @@ public class ProgramManagementService {
     // 프로그램 생성의 기준 데이터만 저장한다. 팀, 질문, 배정은 별도 API에서 단계적으로 등록한다.
     @Transactional
     public ProgramResponse createProgram(CreateProgramRequest request) {
+        if (request.status() != null && request.status() != Status.DRAFT && request.status() != Status.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "생성 시에는 임시저장(DRAFT) 또는 개설(ACTIVE)만 선택할 수 있습니다. 실제 상태는 기간으로 결정됩니다.");
+        }
         User manager = request.managerId() == null ? null : userRepository.findById(request.managerId())
                 .orElseThrow(() -> notFound("Manager not found."));
         Instant applicationStart = ProgramTimes.resolve(request.applicationStartAt(), request.applicationStart(), null, null, false);
@@ -253,22 +257,21 @@ public class ProgramManagementService {
         }
     }
 
-    // 매니저가 프로그램 상태를 직접 바꾼다. 지정한 값을 그대로 반영한다.
+    // 임시저장만 개설할 수 있다. 이후 상태 전환은 기간으로만 결정한다.
     @Transactional
-    public ProgramResponse changeStatus(Long programId, ChangeStatusRequest request) {
+    public ProgramResponse publishProgram(Long programId) {
         Program program = programRepository.findById(programId)
                 .orElseThrow(() -> notFound("Program not found."));
-
-        Status previous = program.getStatus();
-        if (previous == Status.DRAFT && request.status() != Status.DRAFT) {
-            requirePublishDates(ProgramTimes.applicationDeadline(program), ProgramTimes.evaluationDeadline(program));
+        entityManager.refresh(program, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (program.getStatus() != Status.DRAFT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "임시저장 프로그램만 개설할 수 있습니다.");
         }
-        program.changeStatus(request.status());
-        // 임시 저장(DRAFT)에서 개설하는 경우에는 요청 값과 무관하게 오늘 날짜 기준으로 상태를 다시 잡는다.
-        // (프론트가 개설 시 ACTIVE를 보내지만, 접수 시작 전이면 SCHEDULED여야 한다.)
-        if (previous == Status.DRAFT && request.status() != Status.DRAFT) {
-            applyAutoStatus(program);
-        }
+        requirePublishDates(ProgramTimes.applicationDeadline(program), ProgramTimes.evaluationDeadline(program));
+        validateProgramDates(ProgramTimes.applicationStart(program), ProgramTimes.applicationDeadline(program),
+                ProgramTimes.evaluationStart(program), ProgramTimes.evaluationDeadline(program));
+        program.changeStatus(Status.ACTIVE);
+        applyAutoStatus(program);
+        entityManager.flush();
         return ProgramResponse.from(program);
     }
 

@@ -6,7 +6,7 @@ export const getOpenPrograms = () => api.get('/programs/open');
 // Existing date-only payloads remain supported during the frontend transition.
 export const createProgram = (data) => api.post('/programs', data);
 export const updateProgram = (programId, data) => api.patch(`/programs/${programId}`, data);
-export const changeStatus = (programId, data) => api.patch(`/programs/${programId}/status`, data);
+export const publishProgram = (programId) => api.post(`/programs/${programId}/publish`);
 export const deleteProgram = (programId) => api.delete(`/programs/${programId}`);
 
 export const getTeams = (programId) => api.get(`/programs/${programId}/teams`);
