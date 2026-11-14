@@ -1,8 +1,8 @@
 import './EvaluationPage.css';
 import BonusSummary from '../components/BonusSummary';
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useBlocker, useOutletContext } from 'react-router-dom';
 import { getEvaluationView, saveDraft, submitEvaluation } from '../api/evaluations';
 import { FIELD_TYPE_LABEL, normalizeFieldType, parseCheckboxValue, isFileType } from '../utils/formFields';
 import TeamMemberList from '../components/TeamMemberList';
@@ -34,6 +34,9 @@ export default function EvaluationPage() {
   const { assignmentId, teamId } = useParams();
   const navigate = useNavigate();
   const { state } = useLocation();
+  const registerLogoutGuard = useOutletContext();
+  const [pendingLogout, setPendingLogout] = useState(null);
+  const startedLogoutRef = useRef(null);
   const queryClient = useQueryClient();
   const hydratedViewRef = useRef(null);
   const observedSubmissionStatusRef = useRef(null);
@@ -45,7 +48,7 @@ export default function EvaluationPage() {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [savedSnapshot, setSavedSnapshot] = useState(null);
   const [isEditingSubmitted, setIsEditingSubmitted] = useState(false);
-  const [leaveAction, setLeaveAction] = useState(null);
+  const leaveDialogRef = useRef(null);
   const [scoringOpen, setScoringOpen] = useState(true);
   const autosaveTimerRef = useRef(null);
   const [submissionConflict, setSubmissionConflict] = useState(false);
@@ -92,6 +95,46 @@ export default function EvaluationPage() {
   };
   // 마지막 저장/로드 시점 대비 변경 여부. 저장 스냅샷이 아직 없으면(로딩 중) 변경 없음으로 본다.
   const dirty = savedSnapshot !== null && snapshotOf(scores, comment) !== savedSnapshot;
+  const busy = saving || submitting;
+  const shouldBlockNavigation = useCallback(({ currentLocation, nextLocation }) => {
+    const leaving = currentLocation.pathname !== nextLocation.pathname
+      || currentLocation.search !== nextLocation.search;
+    if (leaving && (dirty || busy || submissionConflict)) {
+      clearTimeout(autosaveTimerRef.current);
+      return true;
+    }
+    return false;
+  }, [dirty, busy, submissionConflict]);
+  const blocker = useBlocker(shouldBlockNavigation);
+  const leaving = blocker.state === 'blocked' || pendingLogout !== null;
+
+  useEffect(() => {
+    registerLogoutGuard((action) => {
+      if (dirty || busy || submissionConflict) {
+        clearTimeout(autosaveTimerRef.current);
+        setPendingLogout(() => action);
+      } else void action();
+    });
+    return () => registerLogoutGuard(null);
+  }, [registerLogoutGuard, dirty, busy, submissionConflict]);
+
+  useEffect(() => {
+    if (!leaving) return;
+    if (submissionConflict) {
+      if (blocker.state === 'blocked') blocker.reset();
+    } else if (!busy && !dirty) {
+      if (pendingLogout) {
+        if (startedLogoutRef.current !== pendingLogout) {
+          startedLogoutRef.current = pendingLogout;
+          void pendingLogout();
+        }
+      } else if (blocker.state === 'blocked') blocker.proceed();
+    }
+  }, [blocker, leaving, busy, dirty, submissionConflict, pendingLogout]);
+
+  useEffect(() => {
+    if (leaving && !submissionConflict && !leaveDialogRef.current?.open) leaveDialogRef.current?.showModal();
+  }, [leaving, submissionConflict]);
 
   useEffect(() => {
     const hydrationKey = `${assignmentId}:${teamId}`;
@@ -110,6 +153,8 @@ export default function EvaluationPage() {
     setSavedSnapshot(snapshotOf(loadedScores, loadedComment));
     setLastSavedAt(null);
     setIsEditingSubmitted(false);
+    setMessage('');
+    setLeftTab(0);
   }, [assignmentId, teamId, view]);
 
   // 실시간 갱신이 오래된 탭의 임시저장보다 먼저 도착해도 최신 내용 확인을 강제한다.
@@ -120,7 +165,6 @@ export default function EvaluationPage() {
     observedSubmissionStatusRef.current = latest;
     if (previous !== 'SUBMITTED' && latest === 'SUBMITTED' && !submitting) {
       clearTimeout(autosaveTimerRef.current);
-      setLeaveAction(null);
       setSubmissionConflict(true);
       setReloadError('');
     }
@@ -128,11 +172,11 @@ export default function EvaluationPage() {
 
   // 저장하지 않은 변경사항이 있는 채로 창을 닫으려 하면 경고한다.
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty && !busy) return;
     const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [dirty]);
+  }, [dirty, busy]);
 
   const handleScoreChange = (criterionId, value) => {
     setScores((prev) => ({ ...prev, [criterionId]: value }));
@@ -158,7 +202,6 @@ export default function EvaluationPage() {
     } catch (err) {
       if (err.response?.status === 409) {
         clearTimeout(autosaveTimerRef.current);
-        setLeaveAction(null);
         setSubmissionConflict(true);
         setReloadError('');
         return;
@@ -174,11 +217,11 @@ export default function EvaluationPage() {
 
   // 변경사항이 있으면 일정 시간 후 자동으로 임시저장한다. (제출 완료 상태는 제외)
   useEffect(() => {
-    if (loading || isSubmitted || submissionConflict || beforeStart || afterDeadline || !dirty || saving || submitting || leaveAction) return;
+    if (loading || isSubmitted || submissionConflict || beforeStart || afterDeadline || !dirty || saving || submitting || leaving || blocker.state !== 'unblocked') return;
     autosaveTimerRef.current = setTimeout(() => { persistDraft({ silent: true }); }, AUTOSAVE_DELAY);
     return () => clearTimeout(autosaveTimerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scores, comment, dirty, loading, isSubmitted, submissionConflict, beforeStart, afterDeadline, saving, submitting, leaveAction, viewQuery.dataUpdatedAt]);
+  }, [scores, comment, dirty, loading, isSubmitted, submissionConflict, beforeStart, afterDeadline, saving, submitting, leaving, blocker.state, viewQuery.dataUpdatedAt]);
 
   const handleSubmit = async () => {
     clearTimeout(autosaveTimerRef.current);
@@ -216,24 +259,23 @@ export default function EvaluationPage() {
     setMessage('');
   };
 
-  // 저장되지 않은 변경사항이 있으면 이동 전에 앱 내 확인창을 띄운다. 없으면 바로 이동한다.
-  // 나가기/이전·다음 버튼을 누르는 즉시 대기 중인 자동 임시저장을 멈춰서,
-  // 확인창이 떠 있는 동안 뒤에서 자동저장이 몰래 실행되는 걸 막는다.
-  const requestLeave = (action) => {
-    clearTimeout(autosaveTimerRef.current);
-    if (!dirty) { action(); return; }
-    setLeaveAction(() => action);
-  };
-
-  // '저장하지 않고 나가기'를 선택하면 그대로 이동한다. (자동저장은 이미 requestLeave에서 멈췄다)
+  // 모든 Router 이동은 같은 blocker를 거친다. 진행 중인 저장이 끝나기 전에는 이동하지 않는다.
   const confirmLeave = () => {
-    clearTimeout(autosaveTimerRef.current);
-    const action = leaveAction;
-    setLeaveAction(null);
-    action?.();
+    if (!leaving || busy || submissionConflict) return;
+    if (pendingLogout) {
+      const action = pendingLogout;
+      setPendingLogout(null);
+      // 로그아웃 API를 보낸 뒤의 /login 이동은 다시 막지 않는다.
+      setSavedSnapshot(snapshotOf(scores, comment));
+      void action();
+    } else blocker.proceed();
   };
 
-  const cancelLeave = () => setLeaveAction(null);
+  const cancelLeave = () => {
+    if (!leaving || busy) return;
+    setPendingLogout(null);
+    if (blocker.state === 'blocked') blocker.reset();
+  };
 
   const reloadSubmittedEvaluation = async () => {
     if (reloadingSubmission) return;
@@ -253,6 +295,7 @@ export default function EvaluationPage() {
       setLastSavedAt(null);
       setIsEditingSubmitted(false);
       setMessage('');
+      setPendingLogout(null);
       setSubmissionConflict(false);
     } catch {
       setReloadError('최신 제출 내용을 불러오지 못했습니다. 다시 시도해주세요.');
@@ -262,21 +305,15 @@ export default function EvaluationPage() {
   };
 
   const navigateToTeam = (team) => {
-    requestLeave(() => {
-      setMessage('');
-      setLeftTab(0);
       navigate(`/evaluator/evaluate/${assignmentId}/teams/${team.teamId}`, {
         state: { teams, programTitle, programId },
       });
-    });
   };
 
   const goToTeamList = () => {
-    requestLeave(() => {
       navigate(`/evaluator/evaluate/${assignmentId}/teams`, {
         state: { programId, programTitle },
       });
-    });
   };
 
   if (loading)
@@ -920,27 +957,31 @@ export default function EvaluationPage() {
       )}
 
       {/* 저장되지 않은 변경사항 확인창 */}
-      {leaveAction && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4" onClick={cancelLeave}>
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-base font-semibold text-gray-800 mb-2">저장되지 않은 변경사항이 있습니다</h2>
-            <p className="text-sm text-gray-500 mb-6">저장하지 않고 나가면 지금까지 입력한 점수와 한줄평이 사라집니다.</p>
+      {leaving && !submissionConflict && (
+        <dialog ref={leaveDialogRef} onCancel={(event) => { event.preventDefault(); cancelLeave(); }}
+          onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); cancelLeave(); } }}
+          aria-labelledby="evaluation-leave-title" aria-describedby="evaluation-leave-description"
+          className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border-0 bg-white p-6 shadow-xl backdrop:bg-black/40">
+            <h2 id="evaluation-leave-title" className="text-base font-semibold text-gray-800 mb-2">{busy ? '저장 결과를 확인하고 있습니다' : '저장되지 않은 변경사항이 있습니다'}</h2>
+            <p id="evaluation-leave-description" className="text-sm text-gray-500 mb-6">{busy ? '진행 중인 저장이 끝난 뒤 이동 여부를 확인합니다.' : '저장하지 않고 나가면 지금까지 입력한 점수와 한줄평이 사라집니다.'}</p>
+            {!busy && message.includes('실패') && <p role="alert" className="text-sm text-red-600 mb-4">{message}</p>}
             <div className="flex gap-3">
               <button
                 onClick={cancelLeave}
+                disabled={busy}
                 className="ui-button flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 계속 작성
               </button>
               <button
                 onClick={confirmLeave}
+                disabled={busy}
                 className="ui-button ui-button--danger flex-1 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors cursor-pointer"
               >
                 저장하지 않고 나가기
               </button>
             </div>
-          </div>
-        </div>
+        </dialog>
       )}
     </div>
   );

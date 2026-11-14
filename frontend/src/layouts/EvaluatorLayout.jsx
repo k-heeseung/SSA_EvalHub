@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { logout } from '../api/auth';
@@ -48,6 +48,8 @@ export default function EvaluatorLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const mobileNavTrigger = useRef(null);
   const accountTrigger = useRef(null);
+  const logoutGuardRef = useRef(null);
+  const registerLogoutGuard = useCallback((guard) => { logoutGuardRef.current = guard; }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -68,13 +70,17 @@ export default function EvaluatorLayout() {
     };
   }, [menuOpen]);
 
-  const handleLogout = async () => {
+  const performLogout = async () => {
     try {
       await logoutMutation.mutateAsync();
     } finally {
       queryClient.clear();
       navigate('/login', { replace: true });
     }
+  };
+  const handleLogout = () => {
+    if (logoutGuardRef.current) logoutGuardRef.current(performLogout);
+    else void performLogout();
   };
 
   return (
@@ -174,7 +180,7 @@ export default function EvaluatorLayout() {
       </aside>
 
       <main className="evaluator-main flex-1 overflow-hidden flex flex-col">
-        <Outlet />
+        <Outlet context={registerLogoutGuard} />
       </main>
     </div>
   );

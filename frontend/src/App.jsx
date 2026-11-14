@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route, Navigate } from 'react-router-dom';
 import AdminLayout from './layouts/AdminLayout';
 import EvaluatorLayout from './layouts/EvaluatorLayout';
 import ApplicantLayout from './layouts/ApplicantLayout';
@@ -26,10 +26,8 @@ import ApplicantSubmittedPage from './pages/ApplicantSubmittedPage';
 import ApplicantTeamPage from './pages/ApplicantTeamPage';
 import RequireAuth from './components/RequireAuth';
 
-export default function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
+const router = createBrowserRouter(createRoutesFromElements(
+      <>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
 
@@ -84,7 +82,9 @@ export default function App() {
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </BrowserRouter>
-  );
+      </>
+));
+
+export default function App() {
+  return <RouterProvider router={router} />;
 }
