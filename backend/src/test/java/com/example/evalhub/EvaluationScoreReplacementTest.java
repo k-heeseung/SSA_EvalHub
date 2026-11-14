@@ -99,4 +99,20 @@ class EvaluationScoreReplacementTest {
     private EvaluationSubmissionResponse save(List<EvaluationScoreRequest> requested) {
         return service.saveDraft(3L, 4L, 2L, new SaveEvaluationRequest(null, requested));
     }
+
+    @Test
+    void staleDraftCannotChangeSubmittedScoresCommentOrTimestamp() {
+        submission.submit(BigDecimal.valueOf(15), "final comment");
+        var submittedAt = submission.getSubmittedAt();
+
+        assertThatThrownBy(() -> save(List.of()))
+                .isInstanceOfSatisfying(ResponseStatusException.class, error ->
+                        assertThat(error.getStatusCode().value()).isEqualTo(409));
+
+        verifyNoInteractions(scores);
+        assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.SUBMITTED);
+        assertThat(submission.getTotalScore()).isEqualByComparingTo("15");
+        assertThat(submission.getOneLineComment()).isEqualTo("final comment");
+        assertThat(submission.getSubmittedAt()).isEqualTo(submittedAt);
+    }
 }

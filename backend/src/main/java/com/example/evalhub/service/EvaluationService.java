@@ -229,6 +229,11 @@ public class EvaluationService {
         EvaluationSubmission submission = submissionRepository.findByAssignmentIdAndTeamId(assignmentId, teamId)
                 .orElseGet(() -> submissionRepository.save(new EvaluationSubmission(assignment, team)));
 
+        if (!submit && submission.getStatus() == SubmissionStatus.SUBMITTED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "이미 최종 제출된 평가입니다. 최신 제출 내용을 불러와주세요.");
+        }
+
         // 요청은 현재 화면의 전체 점수 상태다. 비워서 요청에서 빠진 점수는 삭제한다.
         Set<Long> requestedCriterionIds = requestedScores.stream()
                 .map(EvaluationScoreRequest::criterionId)

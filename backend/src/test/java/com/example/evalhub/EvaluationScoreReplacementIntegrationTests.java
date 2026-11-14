@@ -110,6 +110,21 @@ class EvaluationScoreReplacementIntegrationTests {
         return service.saveDraft(assignmentId, teamId, evaluatorId, new SaveEvaluationRequest(null, scores));
     }
 
+    @Test
+    void submittedEvaluationStillAllowsExplicitResubmission() {
+        service.submit(assignmentId, teamId, evaluatorId,
+                new SaveEvaluationRequest("original", List.of(score(firstCriterion, 8), score(secondCriterion, 7))));
+        entityManager.flush();
+        entityManager.clear();
+
+        var edited = service.submit(assignmentId, teamId, evaluatorId,
+                new SaveEvaluationRequest("edited", List.of(score(firstCriterion, 9), score(secondCriterion, 7))));
+
+        assertThat(edited.status()).isEqualTo(SubmissionStatus.SUBMITTED);
+        assertThat(edited.oneLineComment()).isEqualTo("edited");
+        assertReloaded(edited.id(), List.of(firstCriterion, secondCriterion), "16");
+    }
+
     private EvaluationScoreRequest score(Long criterion, int value) {
         return new EvaluationScoreRequest(criterion, BigDecimal.valueOf(value));
     }

@@ -36,6 +36,7 @@ export default function EvaluationPage() {
   const { state } = useLocation();
   const queryClient = useQueryClient();
   const hydratedViewRef = useRef(null);
+  const observedSubmissionStatusRef = useRef(null);
   const [scores, setScores] = useState({});
   const [comment, setComment] = useState('');
   const [leftTab, setLeftTab] = useState(0);
@@ -47,6 +48,14 @@ export default function EvaluationPage() {
   const [leaveAction, setLeaveAction] = useState(null);
   const [scoringOpen, setScoringOpen] = useState(true);
   const autosaveTimerRef = useRef(null);
+  const [submissionConflict, setSubmissionConflict] = useState(false);
+  const [reloadingSubmission, setReloadingSubmission] = useState(false);
+  const [reloadError, setReloadError] = useState('');
+  const conflictDialogRef = useRef(null);
+
+  useEffect(() => {
+    if (submissionConflict && !conflictDialogRef.current?.open) conflictDialogRef.current?.showModal();
+  }, [submissionConflict]);
   const viewQuery = useLiveApiQuery(
     queryKeys.evaluationView(assignmentId, teamId),
     () => getEvaluationView(assignmentId, teamId),
@@ -88,6 +97,7 @@ export default function EvaluationPage() {
     const hydrationKey = `${assignmentId}:${teamId}`;
     if (!view || hydratedViewRef.current === hydrationKey) return;
     hydratedViewRef.current = hydrationKey;
+    observedSubmissionStatusRef.current = view.submission?.status ?? 'DRAFT';
     const loadedScores = {};
     let loadedComment = '';
     if (view.submission?.scores) {
@@ -101,6 +111,20 @@ export default function EvaluationPage() {
     setLastSavedAt(null);
     setIsEditingSubmitted(false);
   }, [assignmentId, teamId, view]);
+
+  // 실시간 갱신이 오래된 탭의 임시저장보다 먼저 도착해도 최신 내용 확인을 강제한다.
+  useEffect(() => {
+    if (!view || hydratedViewRef.current !== `${assignmentId}:${teamId}`) return;
+    const previous = observedSubmissionStatusRef.current;
+    const latest = view.submission?.status ?? 'DRAFT';
+    observedSubmissionStatusRef.current = latest;
+    if (previous !== 'SUBMITTED' && latest === 'SUBMITTED' && !submitting) {
+      clearTimeout(autosaveTimerRef.current);
+      setLeaveAction(null);
+      setSubmissionConflict(true);
+      setReloadError('');
+    }
+  }, [assignmentId, teamId, view, submitting]);
 
   // 저장하지 않은 변경사항이 있는 채로 창을 닫으려 하면 경고한다.
   useEffect(() => {
@@ -122,7 +146,7 @@ export default function EvaluationPage() {
   });
 
   const persistDraft = async ({ silent = false } = {}) => {
-    if (saving || submitting || !view || isSubmitted) return;
+    if (saving || submitting || !view || isSubmitted || submissionConflict) return;
     const blocked = periodMessage();
     if (blocked) { setMessage(blocked); return; }
     if (!silent) setMessage('');
@@ -132,6 +156,13 @@ export default function EvaluationPage() {
       setLastSavedAt(new Date());
       if (!silent) setMessage('임시저장 되었습니다.');
     } catch (err) {
+      if (err.response?.status === 409) {
+        clearTimeout(autosaveTimerRef.current);
+        setLeaveAction(null);
+        setSubmissionConflict(true);
+        setReloadError('');
+        return;
+      }
       setMessage(`저장 실패: ${err.response?.data?.message || '입력한 내용은 화면에 유지됩니다.'}`);
       void viewQuery.refetch();
     } finally {
@@ -143,15 +174,15 @@ export default function EvaluationPage() {
 
   // 변경사항이 있으면 일정 시간 후 자동으로 임시저장한다. (제출 완료 상태는 제외)
   useEffect(() => {
-    if (loading || isSubmitted || beforeStart || afterDeadline || !dirty || saving || submitting || leaveAction) return;
+    if (loading || isSubmitted || submissionConflict || beforeStart || afterDeadline || !dirty || saving || submitting || leaveAction) return;
     autosaveTimerRef.current = setTimeout(() => { persistDraft({ silent: true }); }, AUTOSAVE_DELAY);
     return () => clearTimeout(autosaveTimerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scores, comment, dirty, loading, isSubmitted, beforeStart, afterDeadline, saving, submitting, leaveAction, viewQuery.dataUpdatedAt]);
+  }, [scores, comment, dirty, loading, isSubmitted, submissionConflict, beforeStart, afterDeadline, saving, submitting, leaveAction, viewQuery.dataUpdatedAt]);
 
   const handleSubmit = async () => {
     clearTimeout(autosaveTimerRef.current);
-    if (saving || submitting || !view) return;
+    if (saving || submitting || !view || submissionConflict) return;
     const blocked = periodMessage();
     if (blocked) { setMessage(blocked); return; }
     const isSubmittedEdit = isSubmitted && isEditingSubmitted;
@@ -204,6 +235,32 @@ export default function EvaluationPage() {
 
   const cancelLeave = () => setLeaveAction(null);
 
+  const reloadSubmittedEvaluation = async () => {
+    if (reloadingSubmission) return;
+    setReloadingSubmission(true);
+    setReloadError('');
+    try {
+      const result = await viewQuery.refetch();
+      if (result.isError || result.data?.submission?.status !== 'SUBMITTED') {
+        throw new Error('최신 제출 내용을 불러오지 못했습니다. 다시 시도해주세요.');
+      }
+      const latest = result.data.submission;
+      const loadedScores = Object.fromEntries((latest.scores ?? []).map((score) => [score.criterionId, score.score]));
+      const loadedComment = latest.oneLineComment || '';
+      setScores(loadedScores);
+      setComment(loadedComment);
+      setSavedSnapshot(snapshotOf(loadedScores, loadedComment));
+      setLastSavedAt(null);
+      setIsEditingSubmitted(false);
+      setMessage('');
+      setSubmissionConflict(false);
+    } catch {
+      setReloadError('최신 제출 내용을 불러오지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setReloadingSubmission(false);
+    }
+  };
+
   const navigateToTeam = (team) => {
     requestLeave(() => {
       setMessage('');
@@ -244,7 +301,7 @@ export default function EvaluationPage() {
   const files = view.attachments || [];
   const activePdfIndex = Math.min(pdfIndex, Math.max(0, files.length - 1));
   const isSubmittedReadOnly = isSubmitted && !isEditingSubmitted;
-  const isReadOnly = isSubmittedReadOnly || beforeStart || afterDeadline;
+  const isReadOnly = submissionConflict || isSubmittedReadOnly || beforeStart || afterDeadline;
 
   // 지원자가 제출한 지원서 정보
   const application = view.application;
@@ -842,6 +899,25 @@ export default function EvaluationPage() {
         </div>
         )}
       </div>
+
+      {submissionConflict && (
+        <dialog ref={conflictDialogRef} onCancel={(event) => event.preventDefault()}
+          onKeyDown={(event) => { if (event.key === 'Escape') event.preventDefault(); }}
+          onClose={() => { if (submissionConflict) conflictDialogRef.current?.showModal(); }}
+          aria-labelledby="submission-conflict-title" aria-describedby="submission-conflict-description"
+          className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border-0 bg-white p-6 shadow-xl backdrop:bg-black/40">
+          <h2 id="submission-conflict-title" className="text-base font-semibold text-gray-800 mb-2">이미 최종 제출된 평가입니다</h2>
+          <p id="submission-conflict-description" className="text-sm text-gray-600 mb-4">
+            다른 화면에서 이미 최종 제출된 평가입니다. 최신 제출 내용을 불러와주세요.
+            현재 화면의 미저장 내용은 최신 제출 내용으로 교체됩니다.
+          </p>
+          {reloadError && <p role="alert" className="text-sm text-red-600 mb-4">{reloadError}</p>}
+          <button type="button" autoFocus disabled={reloadingSubmission} onClick={reloadSubmittedEvaluation}
+            className="ui-button ui-button--primary w-full rounded-lg bg-blue-600 px-4 py-2.5 text-white disabled:opacity-50">
+            {reloadingSubmission ? '불러오는 중...' : '최신 제출 내용 불러오기'}
+          </button>
+        </dialog>
+      )}
 
       {/* 저장되지 않은 변경사항 확인창 */}
       {leaveAction && (
