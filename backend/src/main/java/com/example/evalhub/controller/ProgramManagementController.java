@@ -221,6 +221,7 @@ public class ProgramManagementController {
 
     @Operation(summary = "유저 등록", description = "심사위원은 POST /api/evaluators로 생성합니다. 그 외 기존 계정을 등록합니다.")
     @PostMapping("/users")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public UserResponse createUser(@RequestBody CreateUserRequest request) {
         return programManagementService.createUser(request);
     }

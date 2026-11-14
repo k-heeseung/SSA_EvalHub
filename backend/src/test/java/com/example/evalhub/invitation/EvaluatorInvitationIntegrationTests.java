@@ -130,7 +130,7 @@ class EvaluatorInvitationIntegrationTests {
         mvc.perform(get("/api/evaluator-invitations")).andExpect(status().isOk());
         mvc.perform(post("/api/users").with(csrf()).contentType("application/json")
                 .content("{\"email\":\"bypass@example.com\",\"password\":\"unsafe\",\"role\":\"EVALUATOR\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden());
     }
     @Test @WithMockUser(roles="EVALUATOR") void evaluatorCannotReadOrRetryInvitations() throws Exception {
         mvc.perform(get("/api/evaluator-invitations")).andExpect(status().isForbidden());
