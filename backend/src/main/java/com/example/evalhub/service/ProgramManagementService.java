@@ -787,6 +787,9 @@ public class ProgramManagementService {
     public UserResponse changeEvaluatorStatus(Long evaluatorId, ChangeStatusRequest request) {
         User evaluator = userRepository.findById(evaluatorId)
                 .orElseThrow(() -> notFound("Evaluator not found."));
+        if (evaluator.getRole() != Role.EVALUATOR) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User is not an evaluator.");
+        }
         evaluator.changeStatus(request.status());
         return UserResponse.from(evaluator);
     }
