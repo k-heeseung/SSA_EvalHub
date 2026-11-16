@@ -30,3 +30,12 @@ logs/
 .claude/settings.local.json
 
 uploads/
+
+# 로컬 전용 지침 및 참고 문서
+AGENTS.md
+CLAUDE.md
+agent.md
+agents.md
+DESIGN.md
+PRODUCT.md
+docs/
