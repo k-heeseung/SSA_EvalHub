@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+dist-ssr
+.idea
+.vscode
+.claude
+.impeccable
+.env
+.env.*
+logs
+*.log

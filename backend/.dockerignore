@@ -1,0 +1,12 @@
+.git
+.gradle
+build
+.idea
+.vscode
+.claude
+.env
+.env.*
+.gmail-oauth.local.json
+uploads
+logs
+*.log

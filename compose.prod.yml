@@ -1,0 +1,83 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: evaluation_platform
+      POSTGRES_USER: evalon
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evalon -d evaluation_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Seoul
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/evaluation_platform
+      SPRING_DATASOURCE_USERNAME: evalon
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      SPRING_JPA_SHOW_SQL: "false"
+      SERVER_ERROR_INCLUDE_MESSAGE: never
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+
+      EVALHUB_SECURITY_SECURE_COOKIE: "true"
+      EVALHUB_SECURE_COOKIE: "true"
+      EVALHUB_JWT_SECRET: ${EVALHUB_JWT_SECRET:?JWT secret is required}
+      EVALHUB_STORAGE_ATTACHMENTS_PATH: /app/uploads/attachments
+
+      EVALHUB_BOOTSTRAP_ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL is required}
+      EVALHUB_BOOTSTRAP_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+
+      EVALHUB_MAIL_ENABLED: ${EVALHUB_MAIL_ENABLED:-false}
+      EVALHUB_MAIL_LOGIN_URL: https://evalon.skku.edu/login?role=evaluator
+      EVALHUB_MAIL_ENCRYPTION_KEY: ${EVALHUB_MAIL_ENCRYPTION_KEY:?Mail encryption key is required}
+      EVALHUB_GMAIL_CLIENT_ID: ${EVALHUB_GMAIL_CLIENT_ID:-}
+      EVALHUB_GMAIL_CLIENT_SECRET: ${EVALHUB_GMAIL_CLIENT_SECRET:-}
+      EVALHUB_GMAIL_REFRESH_TOKEN: ${EVALHUB_GMAIL_REFRESH_TOKEN:-}
+      EVALHUB_MAIL_SENDER: ${EVALHUB_MAIL_SENDER:-}
+
+      SPRINGDOC_API_DOCS_ENABLED: "false"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+    volumes:
+      - attachments:/app/uploads/attachments
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    environment:
+      VIRTUAL_HOST: evalon.skku.edu
+      VIRTUAL_PORT: "80"
+      LETSENCRYPT_HOST: evalon.skku.edu
+      LETSENCRYPT_EMAIL: ${CERT_EMAIL:?CERT_EMAIL is required}
+    expose:
+      - "80"
+    depends_on:
+      - backend
+    networks:
+      - app
+      - proxy
+
+networks:
+  app:
+  proxy:
+    external: true
+    name: net
+
+volumes:
+  postgres_data:
+  attachments:
