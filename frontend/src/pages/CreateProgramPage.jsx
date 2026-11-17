@@ -361,7 +361,7 @@ export default function CreateProgramPage() {
       hydrateBonusItems(res.data);
       await syncCriteria(Number(programId));
       await syncFormFields(Number(programId));
-      navigate(`/admin/programs/${programId}`);
+      navigate(`/operations/programs/${programId}`);
     } catch (err) {
       setError(`저장 실패: ${extractError(err)}`);
     } finally {
@@ -396,7 +396,7 @@ export default function CreateProgramPage() {
       await syncCriteria(pid);
       await syncFormFields(pid);
       await publishProgram(pid);
-      navigate('/admin/programs');
+      navigate('/operations/programs');
     } catch (err) {
       setError(`생성 실패: ${extractError(err)}`);
       setSubmitting(false);
@@ -594,9 +594,9 @@ export default function CreateProgramPage() {
         stackOnSmall
         breadcrumb={[
           '평가ON',
-          { label: '프로그램', onClick: () => navigate('/admin/programs') },
+          { label: '프로그램', onClick: () => navigate('/operations/programs') },
           ...(isEditMode
-            ? [{ label: title || '프로그램', onClick: () => navigate(`/admin/programs/${programId}`) }]
+            ? [{ label: title || '프로그램', onClick: () => navigate(`/operations/programs/${programId}`) }]
             : []),
           isEditMode ? '수정' : '새 프로그램',
         ]}
@@ -1014,7 +1014,7 @@ export default function CreateProgramPage() {
         <div className="program-editor-footer" role="group" aria-label={isEditMode ? '프로그램 수정 완료' : '프로그램 생성 완료'}>
           {isEditMode ? <>
               <button
-                onClick={() => navigate(`/admin/programs/${programId}`)}
+                onClick={() => navigate(`/operations/programs/${programId}`)}
                 className="ui-button ui-button--ghost px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 취소

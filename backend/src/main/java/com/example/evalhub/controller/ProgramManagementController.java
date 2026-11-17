@@ -71,7 +71,7 @@ public class ProgramManagementController {
 
     // 프로그램 기본 정보를 수정한다. null 필드는 변경하지 않는다.
     @Operation(summary = "프로그램 수정", description = "보낸 필드만 수정합니다. null은 기존 값을 유지합니다. 기간의 *At 필드는 오프셋이 포함된 ISO-8601 시각입니다. 기존 날짜만 보내는 경우 변경되지 않은 날짜의 정확한 시각은 유지합니다.")
-    @PatchMapping("/programs/{programId}")
+    @PostMapping("/programs/{programId}")
     public ProgramResponse updateProgram(@PathVariable Long programId, @RequestBody UpdateProgramRequest request) {
         return programManagementService.updateProgram(programId, request);
     }
@@ -126,7 +126,7 @@ public class ProgramManagementController {
     }
 
     @Operation(summary = "팀 상태 변경", description = "팀의 평가 상태를 PENDING / PASSED / FAILED 중 하나로 변경합니다.")
-    @PatchMapping("/programs/{programId}/teams/{teamId}/status")
+    @PostMapping("/programs/{programId}/teams/{teamId}/status")
     public TeamResponse changeTeamStatus(
             @PathVariable Long programId,
             @PathVariable Long teamId,
@@ -137,7 +137,7 @@ public class ProgramManagementController {
 
     // 매니저가 팀별 항목별 가산점을 입력한다.
     @Operation(summary = "팀 가산점 입력", description = "모든 항목의 itemId와 score를 scores 배열로 전송합니다. 미심사는 null, 점수는 0~항목별 최대 점수입니다.")
-    @PatchMapping("/programs/{programId}/teams/{teamId}/bonus")
+    @PostMapping("/programs/{programId}/teams/{teamId}/bonus")
     public TeamResponse updateTeamBonus(
             @PathVariable Long programId,
             @PathVariable Long teamId,
@@ -241,8 +241,8 @@ public class ProgramManagementController {
         return programManagementService.findUserByEmail(email);
     }
 
-    @Operation(summary = "매니저 목록 조회", description = "role이 MANAGER인 계정 목록을 조회합니다. 최고 관리자(SUPER_ADMIN) 전용입니다.")
-    @GetMapping("/managers")
+    @Operation(summary = "운영 담당자 목록 조회", description = "운영 담당자 역할 계정 목록을 조회합니다. 최고 권한 계정 전용입니다.")
+    @GetMapping("/coordinators")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public List<UserResponse> findManagers() {
         return programManagementService.findManagers();
@@ -261,7 +261,7 @@ public class ProgramManagementController {
     }
 
     @Operation(summary = "심사위원 상태 변경", description = "심사위원을 활성/비활성으로 전환합니다.")
-    @PatchMapping("/evaluators/{evaluatorId}/status")
+    @PostMapping("/evaluators/{evaluatorId}/status")
     public UserResponse changeEvaluatorStatus(@PathVariable Long evaluatorId, @RequestBody ChangeStatusRequest request) {
         return programManagementService.changeEvaluatorStatus(evaluatorId, request);
     }

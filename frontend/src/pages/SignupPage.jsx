@@ -73,7 +73,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-dvh flex">
       {/* 좌측 패널 */}
-      <div className="hidden lg:flex lg:w-[420px] xl:w-[480px] flex-shrink-0 flex-col bg-gradient-to-br from-slate-100 to-blue-50 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[480px] xl:w-[560px] flex-shrink-0 flex-col bg-gradient-to-br from-slate-100 to-blue-50 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-blue-100/60" />
           <div className="absolute top-1/3 -right-10 w-48 h-48 rounded-full bg-indigo-100/40" />
@@ -83,40 +83,24 @@ export default function SignupPage() {
         <div className="relative flex flex-col h-full px-10 py-8">
           {/* 로고 */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">E</div>
+            <img src="/logo.png" alt="성균관대학교" className="w-8 h-8 object-contain" />
             <div>
               <div className="text-sm font-bold text-gray-800 leading-none">평가ON</div>
             </div>
           </div>
 
           <div className="flex-1 flex flex-col justify-center">
-            <p className="text-sm font-semibold tracking-wide text-blue-500 uppercase mb-4">
-              Applicant Sign Up
-            </p>
+            <p className="text-sm font-semibold tracking-wide text-blue-500 uppercase mb-4">Integrated Evaluation Platform</p>
             <h2 className="text-3xl font-bold text-gray-900 leading-snug mb-4">
-              계정을 만들고<br />프로그램에<br />지원하세요
+              지원 접수부터<br />심사·집계까지<br />한 곳에서
             </h2>
-            <p className="text-sm text-gray-500 leading-relaxed mb-8">
-              회원가입 후 여러 프로그램에 지원하고, 지원서 임시저장·수정·제출 현황을 한 곳에서 관리할 수 있습니다.
+            <p className="text-sm text-gray-500 leading-relaxed">
+              프로그램 개설, 지원서 수집, 심사위원 배정과 채점, 결과 내보내기를<br />
+              하나의 워크플로우로 운영합니다.
             </p>
-
-            <div className="space-y-3">
-              {[
-                '하나의 계정으로 여러 프로그램 지원',
-                '지원서 자동 임시저장 · 마감 전 수정',
-                '팀 구성·제출물 관리',
-              ].map((text) => (
-                <div key={text} className="flex items-center gap-2.5">
-                  <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-sm text-gray-600">{text}</span>
-                </div>
-              ))}
-            </div>
           </div>
 
-          <p className="text-xs text-gray-500">© 2026 Sungkyunkwan University</p>
+          <p className="text-xs text-gray-500">© 2026 Sungkyunkwan University · AI Convergence University Project</p>
         </div>
       </div>
 
@@ -289,7 +273,10 @@ export default function SignupPage() {
                   className="w-4 h-4 accent-blue-600 rounded cursor-pointer mt-0.5 flex-shrink-0"
                 />
                 <span className="text-sm text-gray-700">
-                  <span className="text-blue-600 font-medium">[필수]</span> 서비스 이용약관 및 개인정보 처리방침 동의
+                  <span className="text-blue-600 font-medium">[필수]</span> 서비스 이용약관 및{' '}
+                  <a href="https://www.skku.edu/skku/etc/private.do" target="_blank" rel="noreferrer" className="text-blue-600 underline underline-offset-2 hover:text-blue-800" onClick={(event) => event.stopPropagation()}>
+                    개인정보처리방침
+                  </a>{' '}동의
                 </span>
               </label>
               <label className="flex items-start gap-2.5 cursor-pointer select-none">
@@ -326,6 +313,16 @@ export default function SignupPage() {
               로그인
             </button>
           </p>
+
+          <footer className="mt-5 border-t border-gray-100 pt-4 text-xs text-gray-500 sm:flex sm:items-start sm:justify-between sm:gap-4">
+            <a href="https://www.skku.edu/skku/etc/private.do" target="_blank" rel="noreferrer" className="text-blue-600 underline underline-offset-2 hover:text-blue-800">
+              개인정보처리방침
+            </a>
+            <div className="mt-3 text-left leading-relaxed sm:mt-0 sm:text-right">
+              <p className="font-medium text-gray-700">개인정보 보호책임자 및 담당자</p>
+              <p>최규성 · AI중심대학사업단 · 031-290-7156</p>
+            </div>
+          </footer>
         </div>
       </div>
     </div>

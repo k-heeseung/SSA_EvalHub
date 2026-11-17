@@ -78,7 +78,7 @@ class ProgramPublicationIntegrationTests {
 
     @Test void oldStatusEndpointIsRemoved() throws Exception {
         Program program = draft(3600, 7200, 10800, 14400);
-        mvc.perform(patch("/api/programs/" + program.getId() + "/status").with(csrf())
+        mvc.perform(post("/api/programs/" + program.getId() + "/status").with(csrf())
                         .contentType("application/json").content("{\"status\":\"INACTIVE\"}"))
                 .andExpect(status().isNotFound());
         assertThat(program.getStatus()).isEqualTo(Status.DRAFT);

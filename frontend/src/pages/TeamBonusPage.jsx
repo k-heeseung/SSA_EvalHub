@@ -121,20 +121,20 @@ export default function TeamBonusPage() {
 
   const goToTeam = (team) => {
     if (saving || !confirmDiscardIfDirty()) return;
-    navigate(`/admin/programs/${programId}/bonus/${team.teamId}`);
+    navigate(`/operations/programs/${programId}/bonus/${team.teamId}`);
   };
-  const goToProgram = () => { if (!saving) navigate(`/admin/programs/${programId}`); };
+  const goToProgram = () => { if (!saving) navigate(`/operations/programs/${programId}`); };
 
   const saveAndAdvance = async () => {
     const ok = await handleSave();
     if (!ok) return;
-    if (nextTeam) navigate(`/admin/programs/${programId}/bonus/${nextTeam.teamId}`);
+    if (nextTeam) navigate(`/operations/programs/${programId}/bonus/${nextTeam.teamId}`);
     else goToProgram();
   };
 
   // 가산점이 비활성화된 프로그램은 접근 불가.
   if (programsQuery.data && program && !program.bonusEnabled) {
-    return <Navigate to={`/admin/programs/${programId}`} replace />;
+    return <Navigate to={`/operations/programs/${programId}`} replace />;
   }
   if (teamsQuery.isPending || programsQuery.isPending) {
     return <div className="h-full flex items-center justify-center text-gray-500">로딩 중...</div>;

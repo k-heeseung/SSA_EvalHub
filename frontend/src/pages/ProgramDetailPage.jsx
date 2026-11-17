@@ -43,7 +43,7 @@ export default function ProgramDetailPage() {
     return next;
   }, { replace: true, state });
   // 어디서 들어왔는지에 따라 상단 '이전' 버튼이 돌아갈 곳을 정한다. (기본값: 프로그램 목록)
-  const back = state?.back ?? { path: '/admin/programs', label: '프로그램' };
+  const back = state?.back ?? { path: '/operations/programs', label: '프로그램' };
   const programsQuery = useLiveApiQuery(queryKeys.programs, () => getPrograms());
   const teamsQuery = useLiveApiQuery(queryKeys.teams(programId), () => getTeams(programId));
   const criteriaQuery = useLiveApiQuery(queryKeys.criteria(programId), () => getCriteria(programId));
@@ -92,7 +92,7 @@ export default function ProgramDetailPage() {
             <button
               onClick={() => {
                 const first = (teamsQuery.data ?? [])[0];
-                if (first) navigate(`/admin/programs/${programId}/bonus/${first.teamId}`);
+                if (first) navigate(`/operations/programs/${programId}/bonus/${first.teamId}`);
               }}
               disabled={(teamsQuery.data ?? []).length === 0}
               className="ui-button program-detail-action"
@@ -104,7 +104,7 @@ export default function ProgramDetailPage() {
             </button>
           )}
           <button
-            onClick={() => navigate(`/admin/programs/${programId}/edit`)}
+            onClick={() => navigate(`/operations/programs/${programId}/edit`)}
             className="ui-button program-detail-action"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

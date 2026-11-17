@@ -31,8 +31,8 @@ const router = createBrowserRouter(createRoutesFromElements(
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
 
-        {/* 관리자 */}
-        <Route path="/admin" element={(
+        {/* 운영 */}
+        <Route path="/operations" element={(
           <RequireAuth roles={['SUPER_ADMIN', 'MANAGER']}>
             <AdminLayout />
           </RequireAuth>
@@ -44,7 +44,7 @@ const router = createBrowserRouter(createRoutesFromElements(
           <Route path="programs/:programId/teams/:teamId" element={<TeamDetailPage />} />
           <Route path="programs/:programId/bonus/:teamId" element={<TeamBonusPage />} />
           <Route path="teams" element={<TeamsPage />} />
-          <Route path="managers" element={<ManagersPage />} />
+          <Route path="coordinators" element={<ManagersPage />} />
           <Route path="evaluators" element={<EvaluatorsPage />} />
           <Route path="assignments" element={<AssignmentsPage />} />
           <Route path="results" element={<ResultsPage />} />

@@ -217,7 +217,7 @@ export default function TeamsPage() {
                         return (
                           <tr
                             key={team.teamId}
-                            onClick={() => navigate(`/admin/programs/${program.id}/teams/${team.teamId}`)}
+                            onClick={() => navigate(`/operations/programs/${program.id}/teams/${team.teamId}`)}
                             className="hover:bg-gray-50 transition-colors cursor-pointer"
                           >
                             <td className="px-4 py-3.5">

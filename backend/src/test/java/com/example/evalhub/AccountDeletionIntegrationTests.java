@@ -129,7 +129,7 @@ class AccountDeletionIntegrationTests {
                 .andExpect(header().stringValues(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("EVALHUB_ACCESS_TOKEN=;"))));
         mvc.perform(post("/api/auth/login").contentType("application/json").content(loginBody(deleted)))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(patch("/api/evaluators/" + deleted.getId() + "/status").with(user("manager").roles("MANAGER")).with(csrf())
+        mvc.perform(post("/api/evaluators/" + deleted.getId() + "/status").with(user("manager").roles("MANAGER")).with(csrf())
                         .contentType("application/json").content("{\"status\":\"ACTIVE\"}"))
                 .andExpect(status().isConflict());
         mvc.perform(post("/api/programs/" + f.program().getId() + "/assignments").with(user("manager").roles("MANAGER")).with(csrf())

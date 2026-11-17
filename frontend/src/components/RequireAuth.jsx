@@ -3,8 +3,8 @@ import useRealtimeSync from '../query/useRealtimeSync';
 import useCurrentUser from '../query/useCurrentUser';
 
 const HOME_BY_ROLE = {
-  SUPER_ADMIN: '/admin/programs',
-  MANAGER: '/admin/programs',
+  SUPER_ADMIN: '/operations/programs',
+  MANAGER: '/operations/programs',
   EVALUATOR: '/evaluator',
   MEMBER: '/applicant',
 };

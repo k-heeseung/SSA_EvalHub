@@ -5,7 +5,7 @@ export const getOpenPrograms = () => api.get('/programs/open');
 // Program period requests accept *At offset datetimes; responses include schedule.
 // Existing date-only payloads remain supported during the frontend transition.
 export const createProgram = (data) => api.post('/programs', data);
-export const updateProgram = (programId, data) => api.patch(`/programs/${programId}`, data);
+export const updateProgram = (programId, data) => api.post(`/programs/${programId}`, data);
 export const publishProgram = (programId) => api.post(`/programs/${programId}/publish`);
 export const deleteProgram = (programId) => api.delete(`/programs/${programId}`);
 
@@ -15,8 +15,8 @@ export const getTeamApplication = (teamId) => api.get(`/teams/${teamId}/applicat
 export const updateTeamApplication = (teamId, data) => api.put(`/teams/${teamId}/application`, data);
 export const updateTeam = (programId, teamId, data) => api.put(`/programs/${programId}/teams/${teamId}`, data);
 export const deleteTeam = (programId, teamId) => api.delete(`/programs/${programId}/teams/${teamId}`);
-export const changeTeamStatus = (programId, teamId, data) => api.patch(`/programs/${programId}/teams/${teamId}/status`, data);
-export const updateTeamBonus = (programId, teamId, data) => api.patch(`/programs/${programId}/teams/${teamId}/bonus`, data);
+export const changeTeamStatus = (programId, teamId, data) => api.post(`/programs/${programId}/teams/${teamId}/status`, data);
+export const updateTeamBonus = (programId, teamId, data) => api.post(`/programs/${programId}/teams/${teamId}/bonus`, data);
 
 export const getTeamMembers = (teamId) => api.get(`/teams/${teamId}/members`);
 export const addTeamMember = (teamId, data) => api.post(`/teams/${teamId}/members`, data);

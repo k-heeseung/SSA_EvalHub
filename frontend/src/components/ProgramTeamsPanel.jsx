@@ -58,7 +58,7 @@ export default function ProgramTeamsPanel({ programId, program }) {
             const result = resultByTeam.get(team.teamId);
             const bonusScores = result?.bonusScores ?? team.bonusScores ?? [];
             const total = bonusScores.length ? bonusSummary(bonusScores).total : result?.bonusScore ?? team.bonusScore ?? null;
-            const path = `/admin/programs/${programId}/teams/${team.teamId}`;
+            const path = `/operations/programs/${programId}/teams/${team.teamId}`;
             return <tr key={team.teamId} onClick={() => navigate(path)}>
               <td className="program-teams-number">#{String(team.number).padStart(2, '0')}</td>
               <td className="program-teams-identity"><Link to={path} className="program-teams-name" onClick={(event) => event.stopPropagation()}>{team.name || team.displayName}</Link>{team.description?.trim() && <p className="program-teams-description">{team.description.trim()}</p>}{info.name && <p className="program-teams-leader">{isTeam ? '팀장' : '지원자'} · {info.name}</p>}</td>

@@ -110,7 +110,7 @@ class ProgramScheduleApiIntegrationTests {
     @Test
     void oldClientResendingDatesDoesNotErasePreciseTimes() throws Exception {
         long id = create(PRECISE);
-        mvc.perform(patch("/api/programs/" + id).with(csrf()).contentType("application/json").content("""
+        mvc.perform(post("/api/programs/" + id).with(csrf()).contentType("application/json").content("""
             {"title":"updated","applicationStart":"2030-11-10","applicationDeadline":"2030-11-20",
              "evaluationStart":"2030-11-20","evaluationDeadline":"2030-11-30"}
             """))
@@ -119,9 +119,9 @@ class ProgramScheduleApiIntegrationTests {
     }
 
     @Test
-    void partialTimePatchKeepsAllOtherInstants() throws Exception {
+    void partialTimeUpdateKeepsAllOtherInstants() throws Exception {
         long id = create(PRECISE);
-        mvc.perform(patch("/api/programs/" + id).with(csrf()).contentType("application/json")
+        mvc.perform(post("/api/programs/" + id).with(csrf()).contentType("application/json")
                         .content("{\"evaluationDeadlineAt\":\"2030-12-01T12:30:00+09:00\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.schedule.applicationStartAt").value("2030-11-10T09:00:00+09:00"))

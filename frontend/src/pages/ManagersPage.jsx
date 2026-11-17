@@ -39,7 +39,7 @@ export default function ManagersPage() {
 
   // 최고 관리자 전용 화면. 그 외 역할은 프로그램 목록으로 되돌린다.
   if (!userLoading && !isSuperAdmin) {
-    return <Navigate to="/admin/programs" replace />;
+    return <Navigate to="/operations/programs" replace />;
   }
 
   const enterEditMode = () => { setEditMode(true); setSelectedIds(new Set()); };
