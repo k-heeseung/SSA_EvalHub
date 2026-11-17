@@ -94,7 +94,7 @@ export default function ProgramResultsPanel({ programId, program }) {
     } catch { setExportError('파일을 내보내지 못했습니다. 잠시 후 다시 시도해주세요.'); }
     finally { setExportPending(false); }
   };
-  const goToTeamInfo = () => navigate(`/admin/programs/${programId}/teams/${selected.teamId}`, {
+  const goToTeamInfo = () => navigate(`/operations/programs/${programId}/teams/${selected.teamId}`, {
     state: { resultReturn: `${location.pathname}${location.search}`, resultMethod: method },
   });
 

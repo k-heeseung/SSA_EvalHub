@@ -42,8 +42,8 @@ export default function ResultsPage() {
     });
 
   const goToResults = (programId) =>
-    navigate(`/admin/programs/${programId}`, {
-      state: { defaultTab: 3, back: { path: '/admin/results', label: '결과·내보내기' } },
+    navigate(`/operations/programs/${programId}`, {
+      state: { defaultTab: 3, back: { path: '/operations/results', label: '결과·내보내기' } },
     });
 
   return (

@@ -11,7 +11,7 @@ import java.util.Set;
 @Component
 public class RealtimeUpdateInterceptor implements HandlerInterceptor {
 
-    private static final Set<String> MUTATING_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
+    private static final Set<String> MUTATING_METHODS = Set.of("POST", "PUT", "DELETE");
     private final RealtimeUpdateService realtimeUpdateService;
 
     public RealtimeUpdateInterceptor(RealtimeUpdateService realtimeUpdateService) {

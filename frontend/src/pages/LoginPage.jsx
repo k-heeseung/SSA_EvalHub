@@ -6,8 +6,8 @@ import { queryKeys } from '../query/keys';
 
 // 계정의 실제 역할(role)에 따라 이동할 화면을 결정한다.
 const ROUTE_BY_ROLE = {
-  SUPER_ADMIN: '/admin/programs',
-  MANAGER: '/admin/programs',
+  SUPER_ADMIN: '/operations/programs',
+  MANAGER: '/operations/programs',
   EVALUATOR: '/evaluator',
   MEMBER: '/applicant',
 };
@@ -22,7 +22,7 @@ const ROLES = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7l9 6 9-6" />
       </svg>
     ),
-    route: '/admin/programs',
+    route: '/operations/programs',
     role: 'MANAGER',
   },
   {
@@ -251,6 +251,15 @@ export default function LoginPage() {
               </svg>
             </button>
           </div>
+          <footer className="mt-5 border-t border-gray-100 pt-4 text-xs text-gray-500 sm:flex sm:items-start sm:justify-between sm:gap-4">
+            <a href="https://www.skku.edu/skku/etc/private.do" target="_blank" rel="noreferrer" className="text-blue-600 underline underline-offset-2 hover:text-blue-800">
+              개인정보처리방침
+            </a>
+            <div className="mt-3 text-left leading-relaxed sm:mt-0 sm:text-right">
+              <p className="font-medium text-gray-700">개인정보 보호책임자 및 담당자</p>
+              <p>최규성 · AI중심대학사업단 · 031-290-7156</p>
+            </div>
+          </footer>
         </div>
       </div>
     </div>

@@ -57,14 +57,14 @@ const LogoutIcon = () => (
 );
 // 최고 관리자 전용 항목. MANAGER에게는 노출하지 않는다.
 const superAdminNavItems = [
-  { path: '/admin/managers', label: '매니저 관리', icon: <ShieldIcon /> },
+  { path: '/operations/coordinators', label: '매니저 관리', icon: <ShieldIcon /> },
 ];
 const navItems = [
-  { path: '/admin/programs', label: '프로그램', icon: <FolderIcon /> },
-  { path: '/admin/teams', label: '팀 관리', icon: <TeamIcon /> },
-  { path: '/admin/evaluators', label: '심사위원', icon: <UsersIcon /> },
-  { path: '/admin/assignments', label: '심사 배정', icon: <GridIcon /> },
-  { path: '/admin/results', label: '결과·내보내기', icon: <ChartIcon /> },
+  { path: '/operations/programs', label: '프로그램', icon: <FolderIcon /> },
+  { path: '/operations/teams', label: '팀 관리', icon: <TeamIcon /> },
+  { path: '/operations/evaluators', label: '심사위원', icon: <UsersIcon /> },
+  { path: '/operations/assignments', label: '심사 배정', icon: <GridIcon /> },
+  { path: '/operations/results', label: '결과·내보내기', icon: <ChartIcon /> },
 ];
 
 export default function AdminLayout() {
@@ -188,7 +188,7 @@ export default function AdminLayout() {
             <p className="admin-nav-caption text-xs font-semibold text-gray-500 uppercase tracking-wider px-2 mb-1.5">시스템</p>
             <button
               aria-label="설정" title="설정"
-              onClick={() => { setMobileNavOpen(false); navigate('/admin/settings'); }}
+            onClick={() => { setMobileNavOpen(false); navigate('/operations/settings'); }}
               className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 w-full transition-colors cursor-pointer"
             >
               <SettingsIcon />
@@ -216,7 +216,7 @@ export default function AdminLayout() {
             {menuOpen && (
               <div id="admin-account-actions" className="admin-account-actions absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-10">
                 <button
-                  onClick={() => { setMenuOpen(false); navigate('/admin/settings'); }}
+                  onClick={() => { setMenuOpen(false); navigate('/operations/settings'); }}
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
                 >
                   <SettingsIcon />

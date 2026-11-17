@@ -83,7 +83,7 @@ export default function TeamDetailPage() {
   const { state: entryState } = useLocation();
   const resultMethod = Object.hasOwn(RESULT_METHODS, entryState?.resultMethod) ? entryState.resultMethod : 'ALL';
   const resultReturn = entryState?.resultReturn;
-  const returnToProgram = () => navigate(resultReturn || `/admin/programs/${programId}?tab=teams`);
+  const returnToProgram = () => navigate(resultReturn || `/operations/programs/${programId}?tab=teams`);
   const queryClient = useQueryClient();
   const [showAddMember, setShowAddMember] = useState(false);
   const [showEditTeam, setShowEditTeam] = useState(false);
@@ -160,7 +160,7 @@ export default function TeamDetailPage() {
     if (!window.confirm(`"${team?.name}" 팀을 삭제하시겠습니까?\n하위 팀원, 첨부파일, 배정이 모두 삭제됩니다.`)) return;
     try {
       await deleteTeamMutation.mutateAsync();
-      navigate(`/admin/programs/${programId}`, { state: { defaultTab: 0 } });
+      navigate(`/operations/programs/${programId}`, { state: { defaultTab: 0 } });
     } catch {
       alert('팀 삭제에 실패했습니다.');
     }

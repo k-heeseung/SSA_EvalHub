@@ -178,12 +178,12 @@ class MultipleBonusIntegrationTests {
         assertThat(response.evaluationStarted()).isTrue();
     }
     @Test @WithMockUser(roles="EVALUATOR") void evaluatorCannotWriteBonus() throws Exception {
-        mvc.perform(patch("/api/programs/"+programId+"/teams/"+teamId+"/bonus").with(csrf())
+        mvc.perform(post("/api/programs/"+programId+"/teams/"+teamId+"/bonus").with(csrf())
             .contentType("application/json").content(mapper.writeValueAsString(scores(BigDecimal.ONE,null))))
             .andExpect(status().isForbidden());
     }
     @Test @WithMockUser(roles="MANAGER") void managerApiAcceptsOnlyScoresAndReturnsAllItems() throws Exception {
-        mvc.perform(patch("/api/programs/"+programId+"/teams/"+teamId+"/bonus").with(csrf())
+        mvc.perform(post("/api/programs/"+programId+"/teams/"+teamId+"/bonus").with(csrf())
             .contentType("application/json").content(mapper.writeValueAsString(scores(BigDecimal.ONE,null))))
             .andExpect(status().isOk()).andExpect(jsonPath("$.bonusScores.length()").value(2))
             .andExpect(jsonPath("$.bonusScore").value(1)).andExpect(jsonPath("$.bonusReason").doesNotExist());

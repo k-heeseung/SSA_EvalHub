@@ -209,7 +209,7 @@ export default function ProgramsPage() {
             )}
           </div>
           <button
-            onClick={() => navigate('/admin/programs/new')}
+            onClick={() => navigate('/operations/programs/new')}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
           >
             + 프로그램 생성
@@ -276,7 +276,7 @@ export default function ProgramsPage() {
           <p className="programs-empty-title text-gray-700 font-semibold text-lg mb-1">등록된 프로그램이 없습니다</p>
           <p className="text-gray-500 text-sm mb-6">첫 번째 프로그램을 개설해 평가를 시작하세요.</p>
           <button
-            onClick={() => navigate('/admin/programs/new')}
+            onClick={() => navigate('/operations/programs/new')}
             className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer"
           >
             + 프로그램 생성
@@ -293,9 +293,9 @@ export default function ProgramsPage() {
             <ProgramCard
               key={program.id}
               program={program}
-              onManage={() => navigate(`/admin/programs/${program.id}`)}
-              onEdit={() => navigate(`/admin/programs/${program.id}/edit`)}
-              onContinue={() => navigate('/admin/programs/new', { state: { loadDraftId: program.id } })}
+              onManage={() => navigate(`/operations/programs/${program.id}`)}
+              onEdit={() => navigate(`/operations/programs/${program.id}/edit`)}
+              onContinue={() => navigate('/operations/programs/new', { state: { loadDraftId: program.id } })}
               onDelete={(trigger) => { deleteTriggerRef.current = trigger; deleteMutation.reset(); setDeleteTarget(program); }}
             />
           ))}
